@@ -5,3 +5,4 @@ click
 apscheduler
 python-dotenv
 bt
+matplotlib

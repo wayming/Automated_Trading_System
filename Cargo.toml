@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "indicators",
+    "mock_executor",
+    "risk_management"
+]

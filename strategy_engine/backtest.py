@@ -1,7 +1,8 @@
-
 import bt
 import pandas as pd
 import indicators  # 引入 Rust 模块
+import matplotlib
+import matplotlib.pyplot as plt
 
 # 获取 Rust 输出的股票推荐列表
 def get_target_tickers():
@@ -33,9 +34,12 @@ def create_strategy(price_data):
 
 
 if __name__ == "__main__":
+    matplotlib.use('TkAgg')  # 强制使用 TkAgg 后端
     tickers = get_target_tickers()
     price_data = get_price_data(tickers)
     print(price_data)
     backtest = create_strategy(price_data)
     result = bt.run(backtest)
+    print(result.display())
     result.plot()
+    plt.show() 
