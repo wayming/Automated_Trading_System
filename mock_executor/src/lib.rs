@@ -19,27 +19,27 @@ impl MockExecutor {
         }
     }
 
-    // 模拟买入操作
-    fn buy(&self, ticker: String, price: f64, quantity: f64) -> PyResult<()> {
+    // 模拟买入操作 - Change to &mut self
+    fn buy(&mut self, ticker: String, price: f64, quantity: f64) -> PyResult<()> {
         let mut portfolio = self.portfolio.lock().unwrap();
         let cost = price * quantity;
         if self.cash >= cost {
             self.cash -= cost;
-            *portfolio.entry(ticker).or_insert(0.0) += quantity;
-            println!("买入 {} 数量 {} @ ${}", ticker, quantity, price);
+            *portfolio.entry(ticker.clone()).or_insert(0.0) += quantity;  // Clone ticker here
+            println!("买入 {} 数量 {} @ ${}", ticker, quantity, price); // Now ticker is still available
         } else {
             println!("资金不足，无法买入！");
         }
         Ok(())
     }
-
-    // 模拟卖出操作
-    fn sell(&self, ticker: String, price: f64, quantity: f64) -> PyResult<()> {
+    
+    // 模拟卖出操作 - Change to &mut self
+    fn sell(&mut self, ticker: String, price: f64, quantity: f64) -> PyResult<()> {
         let mut portfolio = self.portfolio.lock().unwrap();
         if let Some(qty) = portfolio.get_mut(&ticker) {
             if *qty >= quantity {
                 *qty -= quantity;
-                self.cash += price * quantity;
+                self.cash += price * quantity; // Now allowed because we have &mut self
                 println!("卖出 {} 数量 {} @ ${}", ticker, quantity, price);
             } else {
                 println!("持仓不足，无法卖出！");

@@ -1,10 +1,14 @@
 
 import click
-import indicators
 import pandas as pd
 import yfinance as yf
+import indicators
 from mock_executor import MockExecutor
 from risk_management import RiskManager
+import backtest
+import matplotlib
+import matplotlib.pyplot as plt
+import bt
 
 @click.command()
 @click.argument("action", type=click.Choice(['run_backtest', 'live_trade'], case_sensitive=False))
@@ -16,7 +20,15 @@ def main(action):
 
 def run_backtest():
     print("Running backtest...")
-    # 使用之前的 backtest.py 脚本运行回测逻辑
+    matplotlib.use('TkAgg')  # 强制使用 TkAgg 后端
+    tickers = backtest.get_target_tickers()
+    price_data = backtest.get_price_data(tickers)
+    print(price_data)
+    backtest_strategy = backtest.create_strategy(price_data)
+    result = bt.run(backtest_strategy)
+    print(result.display())
+    result.plot()
+    plt.show()
     pass
 
 def live_trade():

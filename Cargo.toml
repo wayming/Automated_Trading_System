@@ -4,3 +4,5 @@ members = [
     "mock_executor",
     "risk_management"
 ]
+
+resolver = "2"  # Add this for better dependency resolution

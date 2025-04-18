@@ -1,68 +1,71 @@
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 #[pyclass]
 #[derive(Default)]
-pub struct MockExecutor {
-    portfolio: Arc<Mutex<HashMap<String, f64>>>,  // 股票持仓
-    cash: f64, // 初始现金
+pub struct RiskManager {
+    max_position_size: f64, // Max position size per stock
+    stop_loss_threshold: f64, // Stop-loss threshold
 }
 
 #[pymethods]
-impl MockExecutor {
+impl RiskManager {
     #[new]
-    fn new(initial_cash: f64) -> Self {
-        MockExecutor {
-            portfolio: Arc::new(Mutex::new(HashMap::new())),
-            cash: initial_cash,
+    fn new(max_position_size: f64, stop_loss_threshold: f64) -> Self {
+        RiskManager {
+            max_position_size,
+            stop_loss_threshold,
         }
     }
 
-    // 模拟买入操作
-    fn buy(&self, ticker: String, price: f64, quantity: f64) -> PyResult<()> {
-        let mut portfolio = self.portfolio.lock().unwrap();
-        let cost = price * quantity;
-        if self.cash >= cost {
-            self.cash -= cost;
-            *portfolio.entry(ticker).or_insert(0.0) += quantity;
-            println!("买入 {} 数量 {} @ ${}", ticker, quantity, price);
-        } else {
-            println!("资金不足，无法买入！");
+    // Check position limit
+    fn check_position_limit(&self, py: Python, portfolio: &PyDict, ticker: &str, amount: f64) -> bool {
+        // Convert PyDict to HashMap
+        let portfolio: HashMap<String, f64> = portfolio
+            .into_iter()
+            .map(|(key, value)| {
+                // Extract key and value without needing `py` argument
+                let key: String = key.extract().unwrap(); // Extract the key as a String
+                let value: f64 = value.extract().unwrap(); // Extract the value as a f64
+                (key, value)
+            })
+            .collect();
+
+        let total_value: f64 = portfolio.values().sum();
+        let stock_value = amount * self.max_position_size;
+        if stock_value / total_value > self.max_position_size {
+            println!("Position limit exceeded: buying exceeds max position size!");
+            return false
         }
-        Ok(())
+        true
     }
 
-    // 模拟卖出操作
-    fn sell(&self, ticker: String, price: f64, quantity: f64) -> PyResult<()> {
-        let mut portfolio = self.portfolio.lock().unwrap();
-        if let Some(qty) = portfolio.get_mut(&ticker) {
-            if *qty >= quantity {
-                *qty -= quantity;
-                self.cash += price * quantity;
-                println!("卖出 {} 数量 {} @ ${}", ticker, quantity, price);
-            } else {
-                println!("持仓不足，无法卖出！");
+    // Check stop-loss logic
+    fn check_stop_loss(&self, py: Python, portfolio: &PyDict, ticker: &str, current_price: f64) -> bool {
+        // Convert PyDict to HashMap
+        let portfolio: HashMap<String, f64> = portfolio
+            .into_iter()
+            .map(|(key, value)| {
+                // Extract key and value without needing `py` argument
+                let key: String = key.extract().unwrap(); // Extract the key as a String
+                let value: f64 = value.extract().unwrap(); // Extract the value as a f64
+                (key, value)
+            })
+            .collect();
+
+        if let Some(position) = portfolio.get(ticker) {
+            if current_price < self.stop_loss_threshold * position {
+                println!("Stop-loss triggered for {}: current price is below stop-loss threshold!", ticker);
+                return true;
             }
-        } else {
-            println!("股票 {} 不在持仓中！", ticker);
         }
-        Ok(())
-    }
-
-    // 获取当前现金余额
-    fn get_cash(&self) -> f64 {
-        self.cash
-    }
-
-    // 获取持仓情况
-    fn get_portfolio(&self) -> HashMap<String, f64> {
-        self.portfolio.lock().unwrap().clone()
+        false
     }
 }
 
 #[pymodule]
-fn mock_executor(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<MockExecutor>()?;
+fn risk_management(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<RiskManager>()?;
     Ok(())
 }
