@@ -9,14 +9,19 @@ import backtest
 import matplotlib
 import matplotlib.pyplot as plt
 import bt
+from live_trade import AlpacaExecutor
 
 @click.command()
-@click.argument("action", type=click.Choice(['run_backtest', 'live_trade'], case_sensitive=False))
+@click.argument("action", type=click.Choice(['run_backtest', 'mock_trade', 'live_trade', 'show_trade'], case_sensitive=False))
 def main(action):
     if action == "run_backtest":
         run_backtest()
+    elif action == "mock_trade":
+        mock_trade()
     elif action == "live_trade":
         live_trade()
+    elif action == "show_trade":
+        show_trade()
 
 def run_backtest():
     print("Running backtest...")
@@ -31,7 +36,7 @@ def run_backtest():
     plt.show()
     pass
 
-def live_trade():
+def mock_trade():
     # 模拟实盘交易的执行
     executor = MockExecutor(100000)  # 初始100000现金
     risk_manager = RiskManager(0.1, 0.7)  # 每只股票最大持仓10%，止损70%
@@ -45,6 +50,30 @@ def live_trade():
             executor.buy(ticker, price_data[ticker][-1], 100)  # 买入100股
 
     print("实盘交易模拟结束。")
+
+def live_trade():
+    # 初始化模块
+    executor = AlpacaExecutor()
+    risk_manager = RiskManager(max_position_size=0.1, stop_loss_threshold=0.7)  # Rust风控
+    
+    # 交易逻辑
+    tickers = ["AAPL", "GOOG", "MSFT"]
+    portfolio = executor.get_portfolio()
+    
+    for ticker in tickers:
+        current_price = executor.get_market_price(ticker)
+        
+        # Rust风控检查
+        if risk_manager.check_position_limit(portfolio, ticker, 100):
+            executor.buy(ticker, 100)
+        
+        # 止损检查
+        if risk_manager.check_stop_loss(portfolio, ticker, current_price):
+            executor.sell(ticker, 100)  # 假设固定卖出100股
+
+def show_trade():
+    executor = AlpacaExecutor()
+    print(executor.get_open_orders())
 
 if __name__ == "__main__":
     main()
