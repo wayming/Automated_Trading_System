@@ -6,3 +6,5 @@ apscheduler
 python-dotenv
 bt
 matplotlib
+requests
+feedparser
