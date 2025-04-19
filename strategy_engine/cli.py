@@ -37,7 +37,7 @@ def live_trade():
     risk_manager = RiskManager(0.1, 0.7)  # 每只股票最大持仓10%，止损70%
 
     tickers = ["AAPL", "GOOG", "MSFT"]
-    price_data = yf.download(tickers, start="2020-01-01", end="2024-01-01")["Adj Close"]
+    price_data = yf.download(tickers, start="2020-01-01", end="2024-01-01")["Close"]
 
     for ticker in tickers:
         # 检查是否符合风险管理规则，决定是否买入
