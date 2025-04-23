@@ -8,3 +8,4 @@ bt
 matplotlib
 requests
 feedparser
+webdriver-manager
