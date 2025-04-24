@@ -9,6 +9,7 @@ import time
 from collections import OrderedDict
 import re
 import sys
+import os
 
 class LRUCache:
     def __init__(self, capacity: int):
@@ -276,8 +277,8 @@ def get_authenticated_content(driver, url):
     return content
 
 # Usage
-USERNAME = "intelligentHar83443"
-PASSWORD = "Thinkb00k16p4k"
+USERNAME = os.getenv("TRADE_VIEW_USER")
+PASSWORD = os.getenv("TRADE_VIEW_PASS")
 driver = tradingview_login(USERNAME, PASSWORD)
 if not driver:
     print('no driver')
