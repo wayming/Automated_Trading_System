@@ -10,6 +10,9 @@ from collections import OrderedDict
 import re
 import sys
 import os
+import pickle
+
+COOKIES_PATH = "output/cookies.pkl"
 
 class LRUCache:
     def __init__(self, capacity: int):
@@ -33,6 +36,69 @@ class LRUCache:
 # Initialize LRU cache with capacity of 20
 article_cache = LRUCache(20)
 
+
+def save_cookies(driver, path):
+    with open(path, "wb") as file:
+        pickle.dump(driver.get_cookies(), file)
+
+def load_cookies(driver, path):
+    with open(path, "rb") as file:
+        cookies = pickle.load(file)
+        for cookie in cookies:
+            driver.add_cookie(cookie)
+
+def start_driver():
+    options = uc.ChromeOptions()
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    driver = uc.Chrome(options=options)
+    return driver
+
+def login_to_tradingview(username, password, driver):
+    wait = WebDriverWait(driver, 200)
+    driver.get("https://www.tradingview.com/#signin")
+
+    try:
+        wait.until(EC.presence_of_element_located((By.XPATH, "//span[text()='Email']")))
+        driver.find_element(By.XPATH, "//span[text()='Email']").click()
+
+        wait.until(EC.presence_of_element_located((By.NAME, "id_username")))
+        driver.find_element(By.NAME, "id_username").send_keys(username)
+        driver.find_element(By.NAME, "id_password").send_keys(password + Keys.RETURN)
+
+        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".tv-lightweight-charts")))
+        print("[+] Logged in successfully.")
+        input("Please complete login manually in the browser, then press Enter to continue...")
+        save_cookies(driver, COOKIES_PATH)
+        return True
+    except Exception as e:
+        print(f"[!] Login failed: {e}")
+        return False
+
+def auto_login_tradingview(username, password):
+    driver = start_driver()
+
+    if os.path.exists(COOKIES_PATH):
+        driver.get("https://www.tradingview.com")
+        try:
+            load_cookies(driver, COOKIES_PATH)
+            driver.refresh()
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, ".tv-lightweight-charts"))
+            )
+            print("[+] Logged in using saved cookies.")
+            input("Please complete login manually in the browser, then press Enter to continue...")
+
+            return driver
+        except Exception:
+            print("[!] Failed to login with cookies. Logging in manually.")
+            driver.quit()
+
+    # Start fresh and log in
+    if login_to_tradingview(username, password, driver):
+        return driver
+    else:
+        driver.quit()
+        return None
 
 def debug_tradingview_login(username, password):
     session = requests.Session()
@@ -93,73 +159,10 @@ def debug_tradingview_login(username, password):
     else:
         print("\n⚠️ Login likely failed - check response details above")
 
-def tradingview_login(username, password):
-    session = requests.Session()
-    
-    # TradingView login URL (check this is correct)
-    login_url = "https://www.tradingview.com/accounts/signin/"
-    
-    login_data = {
-        "username": username,
-        "password": password,
-        "remember": "on"
-    }
-    
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Referer": "https://www.tradingview.com"
-    }
-    
-    try:
-        # First get the login page to get cookies
-        session.get(login_url, headers=headers)
-        
-        # Perform login
-        response = session.post(login_url, data=login_data, headers=headers)
-        print(response)
-        response.raise_for_status()
-        
-        # Check if login was successful
-        if "signin" in response.url:
-            raise Exception("Login failed - check credentials")
-            
-        return session
-        
-    except Exception as e:
-        print(f"Login error: {str(e)}")
-        return None
-    
-def read_url(session, url):
-    try:
-        response = session.get(url)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # TradingView specific selectors
-        title = soup.select_one(".article-title, .title-H1bD1x_q, h1")
-        if title:
-            print(f"📌 Title: {title.text.strip()}")
-        else:
-            print("⚠️ Title not found")
-            
-        # Content extraction
-        content = soup.select_one(".article-content, .content-RjfJG2be")
-        if content:
-            print("\n📝 Content:")
-            for p in content.select("p"):
-                text = p.text.strip()
-                if text:
-                    print(f"- {text}")
-        else:
-            print("⚠️ Content not found")
-            
-    except Exception as e:
-        print(f"Error: {str(e)}")
-
 def slugify_filename(text, max_length=100):
-    # Replace spaces with underscores
-    text = text.replace("/", "_")
-    # Remove invalid characters for filenames
-    text = re.sub(r'[<>:"/\\|?*]', '', text)
+    text = text.strip("'")
+    # Replace special characters with underscores
+    text = re.sub(r'[<>:"/\\|?*\s,\.]', '_', text)
     # Trim to max length
     return text[:max_length]
 
@@ -174,12 +177,12 @@ def read_message(driver):
         time.sleep(5)  # wait for JS content to load
 
         # 2. Get all news <a> links
-        news_elements = driver.find_elements("css selector", "a.card-HY0D0owe")
+        news_elements = driver.find_elements("css selector", ".card-HY0D0owe")
         links = [el.get_attribute("href") for el in news_elements if el.get_attribute("href")]
-
+        titles = [el.find_element(By.CSS_SELECTOR, ".title-HY0D0owe").text for el in news_elements]
         # 3. Use BeautifulSoup to extract each article's content
         new_articles_found = 0
-        for url in links[:5]:  # limit for demo (first 5)
+        for url, title in zip(links[:5], titles[:5]):  # limit for demo (first 5)
             # Skip if article is already in cache
             if article_cache.get(url):
                 print(f"\n⏩ Skipping cached article: {url}")
@@ -189,7 +192,7 @@ def read_message(driver):
             
             driver.get(url)
             time.sleep(5)
-            fname = slugify_filename(url)
+            fname = slugify_filename(title)
             
             # Wait for article content
             wait = WebDriverWait(driver, 5)
@@ -249,37 +252,23 @@ def tradingview_login(username, password):
         password_input.send_keys(Keys.RETURN)
 
         # 4. Wait for login to complete
-        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".tv-content")))
-        input("Please complete login manually in the browser, then press Enter to continue...")
+        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".tv-lightweight-charts")))
         print("[+] Logged in successfully.")
         driver.save_screenshot("output/afterlogin.png")
-        
+
         return driver
     
     except Exception as e:
+        print(e)
         driver.quit()
     
     return None
 
-def get_authenticated_content(driver, url):
-    driver.get(url)
-    time.sleep(3)  # Wait for content to load
-    
-    # Get cookies for requests session
-    cookies = driver.get_cookies()
-    session = requests.Session()
-    for cookie in cookies:
-        session.cookies.set(cookie['name'], cookie['value'])
-    
-    # Now you can use either Selenium or the session for requests
-    # Example with Selenium:
-    content = driver.find_element(By.TAG_NAME, "body").text
-    return content
 
 # Usage
 USERNAME = os.getenv("TRADE_VIEW_USER")
 PASSWORD = os.getenv("TRADE_VIEW_PASS")
-driver = tradingview_login(USERNAME, PASSWORD)
+driver = auto_login_tradingview(USERNAME, PASSWORD)
 if not driver:
     print('no driver')
     sys.exit(1)

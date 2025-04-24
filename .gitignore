@@ -3,3 +3,4 @@ mock_executor/target/
 risk_management/target/
 target/
 news_scraper/output/
+news_scraper/response.txt
