@@ -15,7 +15,10 @@ HEADERS = {
 
 # === FUNCTIONS ===
 
-def extract_article_info(html):
+def extract_article_info(file):
+    with open(file, 'r', encoding='utf-8') as f:
+        html = f.read()
+
     soup = BeautifulSoup(html, 'html.parser')
 
     title_tag = soup.find('h1', class_='title-KX2tCBZq')
@@ -48,25 +51,33 @@ def send_to_deepseek(prompt_text):
     else:
         raise Exception(f"Request failed: {response.status_code} - {response.text}")
 
-def extract_response_struct(full_response):
-    # Extract the JSON section between triple backticks
-    match = re.search(r'```[\s\n]*({.*?})[\s\n]*```', full_response, re.DOTALL)
-    if match:
-        json_text = match.group(1)
-        try:
-            # Convert to Python dictionary
-            extracted_data = json.loads(json_text)
-            print("Serialized JSON object:")
-            print(json.dumps(extracted_data, indent=2, ensure_ascii=False))
-        except json.JSONDecodeError as e:
-            print("Failed to parse JSON:", e)
-    else:
-        print("No JSON block found in the response.")
+def extract_response_struct(response, delim='---'):
+    # Create a regex pattern that matches lines with at least N hyphens
+    delim_pattern = rf'^-{{{3},}}$'  # Matches lines with 3+ hyphens
+    
+    # Extract the content between delimiters
+    pattern = rf'{delim_pattern}(.*?){delim_pattern}'
+    match = re.search(pattern, response, re.DOTALL | re.MULTILINE)
+    
+    if not match:
+        raise ValueError(f"JSON block not found between lines with {min_hyphens}+ hyphens")
+    
+    # Get the JSON text and clean it
+    json_text = match.group(1).strip()
+    
+    # Remove single-line comments (lines starting with #)
+    json_cleaned = re.sub(r'#.*', '', json_text)  # Remove everything after #
+    json_cleaned = re.sub(r'//.*', '', json_cleaned)  # Remove everything after //
+    json_cleaned = re.sub(r'^\s*#.*$', '', json_cleaned, flags=re.MULTILINE)  # Clean any remaining    
+
+    # Parse the JSON
+    try:
+        return json.loads(json_cleaned)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Failed to parse JSON: {e}\nCleaned JSON:\n{json_cleaned}")
 
 def run_pipeline(html_path, prompt_path):
-    with open(html_path, "r", encoding="utf-8") as f:
-        html = f.read()
-    article = extract_article_info(html)
+    article = extract_article_info(html_path)
 
     with open(prompt_path, "r", encoding="utf-8") as f:
         base_prompt = f.read()
@@ -78,12 +89,47 @@ def run_pipeline(html_path, prompt_path):
         f"Content:\n{article['content']}"
     )
 
-    print(full_prompt)
     response = send_to_deepseek(full_prompt)
-    return response
+
+    # Extract structured response
+    result = extract_response_struct(response)
+    
+    # Write raw response to .resp file
+    output_dir = os.path.dirname(html_path)
+    base_name = os.path.splitext(os.path.basename(html_path))[0]
+    resp_path = os.path.join(output_dir, f"{base_name}.resp")
+    
+    with open(resp_path, "w", encoding="utf-8") as f:
+        f.write(response)
+    
+    return result
 
 # === RUN SCRIPT ===
 if __name__ == "__main__":
-    # result = run_pipeline("output/https__www.tradingview.com_news_mtnewswires.com20250423G24949880_.html", "prompt.txt")
-    # print("DeepSeek Response:\n")
-    # print(result)
+    try:
+        # Run the pipeline
+        result = run_pipeline(
+            "output/UBS_Adjusts_Price_Target_on_O'Reilly_Automotive_to_$1_580_From_$1_535__Maintains_Buy_Rating.html",
+            "prompt.txt"
+        )
+        
+        print("DeepSeek Response:\n")
+        print(json.dumps(result, indent=2, ensure_ascii=False))  # Pretty print JSON
+        
+        # Check short term score if analysis exists
+        if 'analysis' in result and 'short_term' in result['analysis']:
+            try:
+                # Extract numeric value from [+30] format
+                score_str = result['analysis']['short_term']['score']
+                score = int(re.search(r'[+-]?\d+', score_str).group())
+                
+                if score > 10:
+                    print(f"\nPositive Signal for {result.get('stock_name', 'Unknown')}")
+                    print(f"Short Term Score: {score}")
+            except (ValueError, AttributeError, KeyError):
+                print("\nCould not parse score value")
+        else:
+            print("\nNo short_term analysis available")
+            
+    except Exception as e:
+        print(f"\nError in pipeline execution: {str(e)}")
