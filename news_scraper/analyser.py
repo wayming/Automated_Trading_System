@@ -60,7 +60,8 @@ def extract_response_struct(response, delim='---'):
     match = re.search(pattern, response, re.DOTALL | re.MULTILINE)
     
     if not match:
-        raise ValueError(f"JSON block not found between lines with {min_hyphens}+ hyphens")
+        print(f"JSON block not found for response {response}")
+        return None
     
     # Get the JSON text and clean it
     json_text = match.group(1).strip()
@@ -74,7 +75,8 @@ def extract_response_struct(response, delim='---'):
     try:
         return json.loads(json_cleaned)
     except json.JSONDecodeError as e:
-        raise ValueError(f"Failed to parse JSON: {e}\nCleaned JSON:\n{json_cleaned}")
+        print(f"Failed to parse JSON: {e}\nCleaned JSON:\n{json_cleaned}")
+        return None
 
 def run_pipeline(html_path, prompt_path):
     article = extract_article_info(html_path)

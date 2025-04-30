@@ -4,3 +4,6 @@ risk_management/target/
 target/
 news_scraper/output/
 news_scraper/response.txt
+output/
+trade.log
+news_scraper/__pycache__/

@@ -4,7 +4,6 @@ import sys
 import click
 import pandas as pd
 import yfinance as yf
-import indicators
 from mock_executor import MockExecutor
 from risk_management import RiskManager
 import backtest
@@ -62,28 +61,36 @@ def mock_trade():
             result = analyser.run_pipeline(n, "prompt.txt")
             print("DeepSeek Response:\n")
             print(json.dumps(result, indent=2, ensure_ascii=False))  # Pretty print JSON
-            
+            if result is None:
+                print("No strcutural analysis")
+                continue
+
             # Check short term score if analysis exists
             if 'analysis' in result and 'short_term' in result['analysis']:
                 try:
-                    ticker = result['stock_code']
+                    ticker = result.get('stock_code', 'Unknown')
 
                     # Extract numeric value from [+30] format
                     score_str = result['analysis']['short_term']['score']
                     score = int(re.search(r'[+-]?\d+', score_str).group())
                     
-                    if score > 10:
-                        print(f"\nPositive Signal for {result.get('stock_name', 'Unknown')}")
+                    if score > 50:
+                        print(f"\nPositive Signal for {result.get('stock_name', 'Unknown')} [{ticker}]")
                         print(f"Short Term Score: {score}")
 
                         price_data = yf.download(ticker, period="1d", interval="1m")
+                        if price_data.empty or "Close" not in price_data.columns:
+                            print(f"No data available for {ticker}, skipping.")
+                            continue  # 或者 return，根据上下文跳出或终止
 
                         # 检查是否符合风险管理规则，决定是否买入
+                        last_price = float(price_data["Close"].iloc[-1])  # 避免 FutureWarning
                         if risk_manager.check_position_limit(executor.get_portfolio(), ticker, 100):
-                            executor.buy(ticker, price_data[ticker][-1], 100)  # 买入100股
+                            executor.buy(ticker, last_price, 100)  # 买入100股
 
-                except (ValueError, AttributeError, KeyError):
+                except (ValueError, AttributeError, KeyError) as e:
                     print("\nCould not parse score value")
+                    print("Error details:", e)
             else:
                 print("\nNo short_term analysis available")
 

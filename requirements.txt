@@ -1,6 +1,7 @@
 alpaca-trade-api
 yfinance
 pandas
+pandas-ta
 click
 apscheduler
 python-dotenv
@@ -9,3 +10,4 @@ matplotlib
 requests
 feedparser
 webdriver-manager
+maturin
