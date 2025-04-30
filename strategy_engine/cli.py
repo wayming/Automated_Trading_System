@@ -1,4 +1,6 @@
 
+import os
+import sys
 import click
 import pandas as pd
 import yfinance as yf
@@ -9,8 +11,12 @@ import backtest
 import matplotlib
 import matplotlib.pyplot as plt
 import bt
+import json
+import re
+import time
 from live_trade import AlpacaExecutor
-
+from news_scraper import scraper_trading_view
+from news_scraper import analyser
 @click.command()
 @click.argument("action", type=click.Choice(['run_backtest', 'mock_trade', 'live_trade', 'show_trade'], case_sensitive=False))
 def main(action):
@@ -41,15 +47,49 @@ def mock_trade():
     executor = MockExecutor(100000)  # 初始100000现金
     risk_manager = RiskManager(0.1, 0.7)  # 每只股票最大持仓10%，止损70%
 
-    tickers = ["AAPL", "GOOG", "MSFT"]
-    price_data = yf.download(tickers, start="2020-01-01", end="2024-01-01")["Close"]
+    # Usage
+    USERNAME = os.getenv("TRADE_VIEW_USER")
+    PASSWORD = os.getenv("TRADE_VIEW_PASS")
+    driver = scraper_trading_view.auto_login_tradingview(USERNAME, PASSWORD)
+    if not driver:
+        print('no driver')
+        sys.exit(1)
 
-    for ticker in tickers:
-        # 检查是否符合风险管理规则，决定是否买入
-        if risk_manager.check_position_limit(executor.get_portfolio(), ticker, 100):
-            executor.buy(ticker, price_data[ticker][-1], 100)  # 买入100股
+    # Run the function in a loop with 3-second delay
+    while True:
+        news = scraper_trading_view.read_message(driver)
+        for n in news:
+            result = analyser.run_pipeline(n, "prompt.txt")
+            print("DeepSeek Response:\n")
+            print(json.dumps(result, indent=2, ensure_ascii=False))  # Pretty print JSON
+            
+            # Check short term score if analysis exists
+            if 'analysis' in result and 'short_term' in result['analysis']:
+                try:
+                    ticker = result['stock_code']
 
-    print("实盘交易模拟结束。")
+                    # Extract numeric value from [+30] format
+                    score_str = result['analysis']['short_term']['score']
+                    score = int(re.search(r'[+-]?\d+', score_str).group())
+                    
+                    if score > 10:
+                        print(f"\nPositive Signal for {result.get('stock_name', 'Unknown')}")
+                        print(f"Short Term Score: {score}")
+
+                        price_data = yf.download(ticker, period="1d", interval="1m")
+
+                        # 检查是否符合风险管理规则，决定是否买入
+                        if risk_manager.check_position_limit(executor.get_portfolio(), ticker, 100):
+                            executor.buy(ticker, price_data[ticker][-1], 100)  # 买入100股
+
+                except (ValueError, AttributeError, KeyError):
+                    print("\nCould not parse score value")
+            else:
+                print("\nNo short_term analysis available")
+
+        time.sleep(3)
+
+    print("模拟交易结束。")
 
 def live_trade():
     # 初始化模块

@@ -105,7 +105,7 @@ def run_pipeline(html_path, prompt_path):
     return result
 
 # === RUN SCRIPT ===
-if __name__ == "__main__":
+def main():
     try:
         # Run the pipeline
         result = run_pipeline(

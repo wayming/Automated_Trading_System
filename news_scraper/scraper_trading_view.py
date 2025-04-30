@@ -171,6 +171,7 @@ def read_message(driver):
     print(f"Starting new scan at {time.strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*50)
     
+    file_paths = []
     try:
         # 1. Visit TradingView News Flow
         driver.get("https://www.tradingview.com/news-flow/")
@@ -187,7 +188,7 @@ def read_message(driver):
             if article_cache.get(url):
                 print(f"\n⏩ Skipping cached article: {url}")
                 continue
-                
+
             print(f"\n🔗 Reading new article: {url}")
             
             driver.get(url)
@@ -206,8 +207,8 @@ def read_message(driver):
             with open(f"output/{fname}.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
             print("[+] Saved full HTML to 'tradingview_news_article.html'.")
+            file_paths.append(f"output/{fname}.html")
 
-            
             # Add to cache
             article_cache.put(url)
             new_articles_found += 1
@@ -218,8 +219,7 @@ def read_message(driver):
     except Exception as e:
         print(f"⚠️ An error occurred: {str(e)}")
 
-
-
+    return file_paths
 
 def tradingview_login(username, password):
  
@@ -264,19 +264,21 @@ def tradingview_login(username, password):
     
     return None
 
+def main():
+    # Usage
+    USERNAME = os.getenv("TRADE_VIEW_USER")
+    PASSWORD = os.getenv("TRADE_VIEW_PASS")
+    driver = auto_login_tradingview(USERNAME, PASSWORD)
+    if not driver:
+        print('no driver')
+        sys.exit(1)
 
-# Usage
-USERNAME = os.getenv("TRADE_VIEW_USER")
-PASSWORD = os.getenv("TRADE_VIEW_PASS")
-driver = auto_login_tradingview(USERNAME, PASSWORD)
-if not driver:
-    print('no driver')
-    sys.exit(1)
-
-# Run the function in a loop with 3-second delay
-while True:
-    read_message(driver)
-    print("\n" + "="*50)
-    print(f"Cache size: {len(article_cache.cache)}/20 | Waiting 3 seconds before next scan...")
-    print("="*50 + "\n")
-    time.sleep(3)
+    # Run the function in a loop with 3-second delay
+    while True:
+        news = read_message(driver)
+        for n in news:
+            print(n)
+        print("\n" + "="*50)
+        print(f"Cache size: {len(article_cache.cache)}/20 | Waiting 3 seconds before next scan...")
+        print("="*50 + "\n")
+        time.sleep(3)
