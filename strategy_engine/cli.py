@@ -87,6 +87,12 @@ def mock_trade():
                         last_price = float(price_data["Close"].iloc[-1])  # 避免 FutureWarning
                         if risk_manager.check_position_limit(executor.get_portfolio(), ticker, 100):
                             executor.buy(ticker, last_price, 100)  # 买入100股
+                            print(f"cash: {executor.get_cash()}")
+                            print("portfolio:")
+                            json.dump(executor.get_portfolio(), f, indent=2)
+                        else:
+                            print(f"Not enough balance")
+                            return
 
                 except (ValueError, AttributeError, KeyError) as e:
                     print("\nCould not parse score value")
