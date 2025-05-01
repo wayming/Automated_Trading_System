@@ -6,14 +6,14 @@ import pandas as pd
 import yfinance as yf
 from mock_executor import MockExecutor
 from risk_management import RiskManager
-import backtest
+from . import backtest
 import matplotlib
 import matplotlib.pyplot as plt
 import bt
 import json
 import re
 import time
-from live_trade import AlpacaExecutor
+from strategy_engine.live_trade import AlpacaExecutor
 from news_scraper import scraper_trading_view
 from news_scraper import analyser
 @click.command()
@@ -58,11 +58,13 @@ def mock_trade():
     while True:
         news = scraper_trading_view.read_message(driver)
         for n in news:
-            result = analyser.run_pipeline(n, "prompt.txt")
-            print("DeepSeek Response:\n")
-            print(json.dumps(result, indent=2, ensure_ascii=False))  # Pretty print JSON
-            if result is None:
-                print("No strcutural analysis")
+            try:
+                result = analyser.run_pipeline(n, "prompt.txt")
+                print("DeepSeek Response:\n")
+                print(json.dumps(result, indent=2, ensure_ascii=False))  # Pretty print JSON
+                assert result is not None, "No strcutural analysis"
+            except Exception as e:
+                print("Error details:", e)
                 continue
 
             # Check short term score if analysis exists
@@ -89,7 +91,7 @@ def mock_trade():
                             executor.buy(ticker, last_price, 100)  # 买入100股
                             print(f"cash: {executor.get_cash()}")
                             print("portfolio:")
-                            json.dump(executor.get_portfolio(), f, indent=2)
+                            print(json.dumps(executor.get_portfolio(), indent=2))
                         else:
                             print(f"Not enough balance")
                             return

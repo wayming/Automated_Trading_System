@@ -3,6 +3,8 @@ import requests
 import json
 import re
 from bs4 import BeautifulSoup
+from urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter
 
 # === CONFIG ===
 API_KEY = os.getenv("DEEPSEEK_API_KEY")
@@ -39,18 +41,28 @@ def extract_article_info(file):
 def send_to_deepseek(prompt_text):
     payload = {
         "model": "deepseek-chat",
+        # "model": "deepseek-reasoner",
         "messages": [
             {"role": "user", "content": prompt_text}
         ],
         "temperature": 0.7
     }
 
-    response = requests.post(API_URL, headers=HEADERS, json=payload)
-    if response.status_code == 200:
-        return response.json()['choices'][0]['message']['content']
-    else:
-        raise Exception(f"Request failed: {response.status_code} - {response.text}")
+    session = requests.Session()
+    retries = Retry(total=3, backoff_factor=1, status_forcelist=[502, 503, 504])
+    session.mount("https://", HTTPAdapter(max_retries=retries))
 
+    try:
+        response = session.post(API_URL, headers=HEADERS, json=payload, timeout=60)
+        response.raise_for_status()
+        if response.status_code == 200:
+            return response.json()['choices'][0]['message']['content']
+        else:
+            raise Exception(f"Request failed: {response.status_code} - {response.text}")
+    except requests.exceptions.RequestException as e:
+        print("Error sending request to DeepSeek:", e)
+        return None
+    
 def extract_response_struct(response, delim='---'):
     # Create a regex pattern that matches lines with at least N hyphens
     delim_pattern = rf'^-{{{3},}}$'  # Matches lines with 3+ hyphens
@@ -92,7 +104,9 @@ def run_pipeline(html_path, prompt_path):
     )
 
     response = send_to_deepseek(full_prompt)
-
+    if response is None:
+        return None
+    
     # Extract structured response
     result = extract_response_struct(response)
     
@@ -135,3 +149,5 @@ def main():
             
     except Exception as e:
         print(f"\nError in pipeline execution: {str(e)}")
+
+# main()

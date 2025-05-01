@@ -7,3 +7,5 @@ news_scraper/response.txt
 output/
 trade.log
 news_scraper/__pycache__/
+strategy_engine/__pycache__/
+notes
