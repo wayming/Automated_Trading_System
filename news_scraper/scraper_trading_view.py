@@ -206,7 +206,7 @@ def read_message(driver):
             print(f"\n🔗 Write to file: {fname}")
             with open(f"output/{fname}.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
-            print("[+] Saved full HTML to 'tradingview_news_article.html'.")
+            print(f"[+] Saved full HTML to output/{fname}.html.")
             file_paths.append(f"output/{fname}.html")
 
             # Add to cache

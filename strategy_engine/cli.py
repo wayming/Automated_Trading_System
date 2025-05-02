@@ -43,7 +43,7 @@ def run_backtest():
 
 def mock_trade():
     # 模拟实盘交易的执行
-    executor = MockExecutor(100000)  # 初始100000现金
+    executor = MockExecutor(1000000)  # 初始100000现金
     risk_manager = RiskManager(0.1, 0.7)  # 每只股票最大持仓10%，止损70%
 
     # Usage

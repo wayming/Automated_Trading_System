@@ -11,3 +11,6 @@ requests
 feedparser
 webdriver-manager
 maturin
+requests_html
+lxml
+lxml_html_clean
