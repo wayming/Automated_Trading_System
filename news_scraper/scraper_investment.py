@@ -1,3 +1,10 @@
+import undetected_chromedriver as uc
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
+
 from bs4 import BeautifulSoup
 import requests
 import time
@@ -5,7 +12,6 @@ from collections import OrderedDict
 import re
 import sys
 import os
-from requests_html import HTMLSession
 
 class LRUCache:
     def __init__(self, capacity: int):
@@ -37,7 +43,7 @@ def slugify_filename(text, max_length=100):
     # Trim to max length
     return text[:max_length]
 
-def read_message():
+def read_message(driver):
     print("\n" + "="*50)
     print(f"Starting new scan at {time.strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*50)
@@ -48,13 +54,14 @@ def read_message():
         # 获取新闻页面内容
         url = 'https://au.investing.com/news/headlines'
 
-        session = HTMLSession()
-        response = session.get(url)
-        response.html.render(timeout=30)  # Wait for JS to load
+        driver.get(url)
+        time.sleep(5)  # wait for JS content to load
 
         # Extract news (adjust selectors)
-        news_items = response.html.find('a.text-sm')  # Example selector
+        news_items =driver.find_elements("css selector", ".text_sm")
         print(news_items)
+        return file_paths
+    
         # 提取标题和链接
         titles = [el.get_text(strip=True) for el in news_items]
         links = ['https://au.investing.com' + el['href'] for el in news_items if el.has_attr('href')]
@@ -98,15 +105,72 @@ def read_message():
 
     return file_paths
 
+def start_firefox_driver(headless=False):
+    options = Options()
+
+    # Enable headless mode if needed
+    if headless:
+        options.headless = True
+
+    # Set custom user-agent
+    options.set_preference(
+        "general.useragent.override",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:110.0) Gecko/20100101 Firefox/110.0"
+    )
+
+    # Try to reduce automation fingerprint
+    options.set_preference("dom.webdriver.enabled", False)
+    options.set_preference("useAutomationExtension", False)
+
+    # Explicit binary location (only needed if not in standard path)
+    options.binary_location = "/usr/bin/firefox"
+
+    # Start the driver
+    driver = webdriver.Firefox(options=options)
+    return driver
+
+
+# def start_driver(headless=False):
+#     options = uc.ChromeOptions()
+
+#     # Try to avoid detection
+#     options.add_argument("--disable-blink-features=AutomationControlled")
+#     options.add_argument("--disable-infobars")
+#     options.add_argument("--disable-extensions")
+#     options.add_argument("--start-maximized")
+#     options.add_argument("--no-sandbox")
+#     options.add_argument("--disable-dev-shm-usage")
+
+#     # Enable headless mode if requested
+#     if headless:
+#         options.headless = True
+
+#     # Start the browser
+#     driver = uc.Chrome(options=options)
+#     return driver
+
+
+def start_driver():
+    options = Options()
+    #options.add_argument("--headless")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    driver = uc.Chrome(options=options)
+    return driver
+
 def main():
+
+    # Start WebDriver
+    driver = start_driver()
+
     # Run the function in a loop with 3-second delay
     while True:
-        news = read_message()
+        news = read_message(driver)
         for n in news:
             print(n)
         print("\n" + "="*50)
         print(f"Cache size: {len(article_cache.cache)}/20 | Waiting 3 seconds before next scan...")
         print("="*50 + "\n")
+        break
         time.sleep(3)
 
 main()
