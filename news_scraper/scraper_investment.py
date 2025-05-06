@@ -53,25 +53,24 @@ def read_message(driver):
     try:
         # 获取新闻页面内容
         url = 'https://au.investing.com/news/headlines'
-
         driver.get(url)
-        time.sleep(5)  # wait for JS content to load
 
+        WebDriverWait(driver, 15).until(
+            EC.text_to_be_present_in_element(
+                (By.CSS_SELECTOR, "h1.text-xl\\/7.sm\\:text-3xl\\/8.font-bold"), 
+                "Breaking News"
+            )
+        )
+        
         # Extract news (adjust selectors)
-        news_items =driver.find_elements("css selector", ".text_sm")
-        print(news_items)
-        return file_paths
-    
-        # 提取标题和链接
-        titles = [el.get_text(strip=True) for el in news_items]
-        links = ['https://au.investing.com' + el['href'] for el in news_items if el.has_attr('href')]
-
-        new_articles_found = 0
-
-        print(list(zip(titles, links)))
+        news_items = driver.find_elements(By.CSS_SELECTOR, '.inline-block')
+        links = [el.get_attribute("href") for el in news_items if el.get_attribute("href")]
+        print(links)
+        titles = [el.text.strip() for el in news_items]
+        print(titles)
         new_articles_found = 0
         for link, title in zip(links[:5], titles[:5]):  #(first 5)
-            print(f"标题：{title}\n链接：https://au.investing.com{link}\n")
+            print(f"标题：{title}\n链接: {link}\n")
             # Skip if article is already in cache
             if article_cache.get(link):
                 print(f"\n⏩ Skipping cached article: {link}")
@@ -80,16 +79,21 @@ def read_message(driver):
             print(f"\n🔗 Reading new article: {link}")
 
             # 获取新闻详情
-            article_response = requests.get(link)
-            article_soup = BeautifulSoup(article_response.content, 'html.parser')
-            content = article_soup.find('div', class_='article_WYSIWYG__O0uhw').get_text(strip=True)
-            print(f"内容：{content[:200]}...")  # 仅显示前200个字符
-            print('-' * 80)
+            # article_response = requests.get(link)
+            # article_soup = BeautifulSoup(article_response.content, 'html.parser')
+            driver.get(link)
+            WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.ID, "articleTitle"))
+            )
 
             fname = slugify_filename(title)
+            print("[+] News read successfully.")
+            driver.save_screenshot(f"output/{fname}.png")
+
+            # 8. Save page HTML to file
             print(f"\n🔗 Write to file: {fname}")
             with open(f"output/{fname}.html", "w", encoding="utf-8") as f:
-                f.write(content)
+                f.write(driver.page_source)
             print(f"[+] Saved full HTML to output/{fname}.html.")
             file_paths.append(f"output/{fname}.html")
 
@@ -97,68 +101,37 @@ def read_message(driver):
             article_cache.put(url)
             new_articles_found += 1
             
-            if new_articles_found == 0:
-                print("\nℹ️ No new articles found in this scan")
+        if new_articles_found == 0:
+            print("\nℹ️ No new articles found in this scan")
         
     except Exception as e:
         print(f"⚠️ An error occurred: {str(e)}")
 
     return file_paths
-
-def start_firefox_driver(headless=False):
-    options = Options()
-
-    # Enable headless mode if needed
-    if headless:
-        options.headless = True
-
-    # Set custom user-agent
-    options.set_preference(
-        "general.useragent.override",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:110.0) Gecko/20100101 Firefox/110.0"
-    )
-
-    # Try to reduce automation fingerprint
-    options.set_preference("dom.webdriver.enabled", False)
-    options.set_preference("useAutomationExtension", False)
-
-    # Explicit binary location (only needed if not in standard path)
-    options.binary_location = "/usr/bin/firefox"
-
-    # Start the driver
-    driver = webdriver.Firefox(options=options)
-    return driver
-
-
-# def start_driver(headless=False):
-#     options = uc.ChromeOptions()
-
-#     # Try to avoid detection
-#     options.add_argument("--disable-blink-features=AutomationControlled")
-#     options.add_argument("--disable-infobars")
-#     options.add_argument("--disable-extensions")
-#     options.add_argument("--start-maximized")
-#     options.add_argument("--no-sandbox")
-#     options.add_argument("--disable-dev-shm-usage")
-
-#     # Enable headless mode if requested
-#     if headless:
-#         options.headless = True
-
-#     # Start the browser
-#     driver = uc.Chrome(options=options)
-#     return driver
-
-
+    
 def start_driver():
     options = Options()
     #options.add_argument("--headless")
     options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+    options.add_argument("--disable-infobars")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--start-maximized")
+
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+
+    # options.add_argument("--headless=new")
+
     driver = uc.Chrome(options=options)
+    # Avoid loading js which blocks the access
+    driver.execute_cdp_cmd("Network.setBlockedURLs", {"urls": ["*.js"]})
+    driver.execute_cdp_cmd("Network.enable", {})
     return driver
 
 def main():
-
+    print(uc.__version__)
     # Start WebDriver
     driver = start_driver()
 
