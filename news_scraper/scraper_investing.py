@@ -18,8 +18,8 @@ from interface import NewsScraper
 class InvestingScraper(NewsScraper):
     def __init__(self):
         self.driver = None
-        self.cache = LRUCache(20)
-        
+        self.article_cache = LRUCache(20)
+
     def _start_driver(self):
         options = Options()
         #options.add_argument("--headless")
@@ -35,11 +35,11 @@ class InvestingScraper(NewsScraper):
 
         # options.add_argument("--headless=new")
 
-        driver = uc.Chrome(options=options)
+        self.driver = uc.Chrome(options=options)
         # Avoid loading js which blocks the access
-        driver.execute_cdp_cmd("Network.setBlockedURLs", {"urls": ["*.js"]})
-        driver.execute_cdp_cmd("Network.enable", {})
-        return driver
+        self.driver.execute_cdp_cmd("Network.setBlockedURLs", {"urls": ["*.js"]})
+        self.driver.execute_cdp_cmd("Network.enable", {})
+        return self.driver
      
     def _slugify(self, text, max_length=100):
         text = re.sub(r'[<>:"/\\|?*\s,\.]', '_', text.strip("'"))
@@ -57,7 +57,6 @@ class InvestingScraper(NewsScraper):
         file_paths = []
 
         try:
-            # 获取新闻页面内容
             url = 'https://au.investing.com/news/headlines'
             self.driver.get(url)
 
@@ -78,25 +77,23 @@ class InvestingScraper(NewsScraper):
             for link, title in zip(links[:5], titles[:5]):  #(first 5)
                 print(f"标题：{title}\n链接: {link}\n")
                 # Skip if article is already in cache
-                if article_cache.get(link):
+                if self.article_cache.get(link):
                     print(f"\n⏩ Skipping cached article: {link}")
                     continue
                 
                 print(f"\n🔗 Reading new article: {link}")
 
-                # 获取新闻详情
-                # article_response = requests.get(link)
-                # article_soup = BeautifulSoup(article_response.content, 'html.parser')
+                # news contents
                 self.driver.get(link)
                 WebDriverWait(self.driver, 15).until(
                     EC.presence_of_element_located((By.ID, "articleTitle"))
                 )
 
-                fname = slugify_filename(title)
+                fname = self._slugify(title)
                 print("[+] News read successfully.")
                 self.driver.save_screenshot(f"output/{fname}.png")
 
-                # 8. Save page HTML to file
+                # Save page HTML to file
                 print(f"\n🔗 Write to file: {fname}")
                 with open(f"output/{fname}.html", "w", encoding="utf-8") as f:
                     f.write(self.driver.page_source)
@@ -104,7 +101,7 @@ class InvestingScraper(NewsScraper):
                 file_paths.append(f"output/{fname}.html")
 
                 # Add to cache
-                article_cache.put(url)
+                self.article_cache.put(url)
                 new_articles_found += 1
                 
             if new_articles_found == 0:
@@ -117,18 +114,11 @@ class InvestingScraper(NewsScraper):
     
 
 def main():
-    print(uc.__version__)
-    # Start WebDriver
-    driver = start_driver()
+    scraper = InvestingScraper()
+    if not scraper.login():
+        return
 
-    # Run the function in a loop with 3-second delay
-    while True:
-        news = read_message(driver)
-        for n in news:
-            print(n)
-        print("\n" + "="*50)
-        print(f"Cache size: {len(article_cache.cache)}/20 | Waiting 3 seconds before next scan...")
-        print("="*50 + "\n")
-        time.sleep(3)
+    articles = scraper.fetch_news(limit=5)
+    print(articles)
 
 main()
