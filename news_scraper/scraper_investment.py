@@ -143,7 +143,6 @@ def main():
         print("\n" + "="*50)
         print(f"Cache size: {len(article_cache.cache)}/20 | Waiting 3 seconds before next scan...")
         print("="*50 + "\n")
-        break
         time.sleep(3)
 
 main()
