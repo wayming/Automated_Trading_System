@@ -14,8 +14,11 @@ import json
 import re
 import time
 from strategy_engine.live_trade import AlpacaExecutor
-from news_scraper import scraper_trading_view
-from news_scraper import analyser
+from news_scraper.scraper_trading_view import TradingViewScraper
+from news_scraper.scraper_investing import InvestingScraper
+from news_scraper.analyser_trading_view import TradingViewAnalyser
+from news_scraper.analyser_investing import InvestingAnalyser
+
 @click.command()
 @click.argument("action", type=click.Choice(['run_backtest', 'mock_trade', 'live_trade', 'show_trade'], case_sensitive=False))
 def main(action):
@@ -41,68 +44,83 @@ def run_backtest():
     plt.show()
     pass
 
+def execute_trade_for_event(trade_executor, scraper, analyser, risk_manager):
+    news = scraper.fetch_news(limit=5)
+    for n in news:
+        try:
+            print(f"\nAnalyse news {n}")
+            analyse_result = analyser.analyse(n)
+            if analyse_result is None:
+                print("Skip the news without structure response.")
+                continue
+            else:
+                print(f"Analysis result for {n}:")
+                print(json.dumps(analyse_result, indent=2, ensure_ascii=False))
+        except Exception as e:
+            print("Error details:", e)
+            continue
+
+        # Check short term score if analysis exists
+        if 'analysis' in analyse_result and 'short_term' in analyse_result['analysis']:
+            try:
+                ticker = analyse_result.get('stock_code', 'Unknown')
+
+                # Extract numeric value from [+30] format
+                score_str = analyse_result['analysis']['short_term']['score']
+                score = int(re.search(r'[+-]?\d+', score_str).group())
+                
+                if score > 50:
+                    print(f"\nPositive Signal for {analyse_result.get('stock_name', 'Unknown')} [{ticker}]")
+                    print(f"Short Term Score: {score}")
+
+                    price_data = yf.download(ticker, period="1d", interval="1m")
+                    if price_data.empty or "Close" not in price_data.columns:
+                        print(f"No data available for {ticker}, skipping.")
+                        continue  # 或者 return，根据上下文跳出或终止
+
+                    # 检查是否符合风险管理规则，决定是否买入
+                    last_price = float(price_data["Close"].iloc[-1])  # 避免 FutureWarning
+                    if risk_manager.check_position_limit(trade_executor.get_portfolio(), ticker, 100):
+                        trade_executor.buy(ticker, last_price, 100)  # 买入100股
+                        print(f"cash: {trade_executor.get_cash()}")
+                        print("portfolio:")
+                        print(json.dumps(trade_executor.get_portfolio(), indent=2))
+                    else:
+                        print(f"Not enough balance")
+                        return
+
+            except (ValueError, AttributeError, KeyError) as e:
+                print("\nCould not parse score value")
+                print("Error details:", e)
+        else:
+            print("\nNo short_term analysis available")
+            
 def mock_trade():
     # 模拟实盘交易的执行
-    executor = MockExecutor(1000000)  # 初始100000现金
+    executor = MockExecutor(10000000)  # 初始100000现金
     risk_manager = RiskManager(0.1, 0.7)  # 每只股票最大持仓10%，止损70%
 
-    # Usage
-    USERNAME = os.getenv("TRADE_VIEW_USER")
-    PASSWORD = os.getenv("TRADE_VIEW_PASS")
-    driver = scraper_trading_view.auto_login_tradingview(USERNAME, PASSWORD)
-    if not driver:
-        print('no driver')
-        sys.exit(1)
+    TV_USERNAME = os.getenv("TRADE_VIEW_USER")
+    TV_PASSWORD = os.getenv("TRADE_VIEW_PASS")
+    DS_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 
-    # Run the function in a loop with 3-second delay
+    news_sources = []
+
+    in_scraper = InvestingScraper()
+    if not in_scraper.login():
+        return 
+    news_sources.append((in_scraper, InvestingAnalyser(DS_API_KEY, "prompt.txt")))
+
+    tv_scraper = TradingViewScraper(TV_USERNAME, TV_PASSWORD)
+    if not tv_scraper.login():
+        return
+    news_sources.append((tv_scraper, TradingViewAnalyser(DS_API_KEY, "prompt.txt")))
+
+
+
     while True:
-        news = scraper_trading_view.read_message(driver)
-        for n in news:
-            try:
-                result = analyser.run_pipeline(n, "prompt.txt")
-                print("DeepSeek Response:\n")
-                print(json.dumps(result, indent=2, ensure_ascii=False))  # Pretty print JSON
-                assert result is not None, "No strcutural analysis"
-            except Exception as e:
-                print("Error details:", e)
-                continue
-
-            # Check short term score if analysis exists
-            if 'analysis' in result and 'short_term' in result['analysis']:
-                try:
-                    ticker = result.get('stock_code', 'Unknown')
-
-                    # Extract numeric value from [+30] format
-                    score_str = result['analysis']['short_term']['score']
-                    score = int(re.search(r'[+-]?\d+', score_str).group())
-                    
-                    if score > 50:
-                        print(f"\nPositive Signal for {result.get('stock_name', 'Unknown')} [{ticker}]")
-                        print(f"Short Term Score: {score}")
-
-                        price_data = yf.download(ticker, period="1d", interval="1m")
-                        if price_data.empty or "Close" not in price_data.columns:
-                            print(f"No data available for {ticker}, skipping.")
-                            continue  # 或者 return，根据上下文跳出或终止
-
-                        # 检查是否符合风险管理规则，决定是否买入
-                        last_price = float(price_data["Close"].iloc[-1])  # 避免 FutureWarning
-                        if risk_manager.check_position_limit(executor.get_portfolio(), ticker, 100):
-                            executor.buy(ticker, last_price, 100)  # 买入100股
-                            print(f"cash: {executor.get_cash()}")
-                            print("portfolio:")
-                            print(json.dumps(executor.get_portfolio(), indent=2))
-                        else:
-                            print(f"Not enough balance")
-                            return
-
-                except (ValueError, AttributeError, KeyError) as e:
-                    print("\nCould not parse score value")
-                    print("Error details:", e)
-            else:
-                print("\nNo short_term analysis available")
-
-        time.sleep(3)
+        for source in news_sources:
+            execute_trade_for_event(executor, source[0], source[1], risk_manager)
 
     print("模拟交易结束。")
 

@@ -6,7 +6,7 @@ import requests
 from bs4                import BeautifulSoup
 from requests.adapters  import HTTPAdapter
 from urllib3.util.retry import Retry
-from interface          import NewsAnalyser
+from .interface          import NewsAnalyser
 
 
 class TradingViewAnalyser(NewsAnalyser):
@@ -49,13 +49,13 @@ class TradingViewAnalyser(NewsAnalyser):
         pattern = r'^-{3,}\s*\n(.*?)\n-{3,}$'
         match = re.search(pattern, response_text, re.DOTALL | re.MULTILINE)
         if not match:
-            print(f"No structure resposne found from {response_text}")
+            print(f"No structure resposne found from llm response:\n{response_text}")
             return None
         
         try:
             return json.loads(match.group(1))
         except json.JSONDecodeError as e:
-            print(f"Failed to decode {e}")
+            print(f"Failed to decode JSON struct.\n{match.group(1)}\nError: {e}")
             return None
 
     def analyse(self, html_path: str) -> dict:
@@ -83,4 +83,4 @@ def main():
     print(f"\n✅ Analysis result for {article_path}:")
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
-main()
+# main()

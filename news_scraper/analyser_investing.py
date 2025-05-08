@@ -6,7 +6,7 @@ import requests
 from bs4                import BeautifulSoup
 from requests.adapters  import HTTPAdapter
 from urllib3.util.retry import Retry
-from interface          import NewsAnalyser
+from .interface          import NewsAnalyser
 
 
 class InvestingAnalyser(NewsAnalyser):
@@ -29,14 +29,15 @@ class InvestingAnalyser(NewsAnalyser):
         article = soup.find('div', id='article')
         content = []
 
-        for tag in article.find_all(['p', 'div'], recursive=True):
-            if tag.name == 'div' and tag.get('id') == 'article-newsletter-hook':
-                break  # End of content
-            if tag.name == 'p':
-                content.append(tag.get_text(strip=True))
+        if article is not None:
+            for tag in article.find_all(['p', 'div'], recursive=True):
+                if tag.name == 'div' and tag.get('id') == 'article-newsletter-hook':
+                    break  # End of content
+                if tag.name == 'p':
+                    content.append(tag.get_text(strip=True))
 
-        for para in content:
-            print(para)
+        # for para in content:
+        #     print(para)
 
         return {
             "title": title if title else "No Title",
@@ -62,13 +63,13 @@ class InvestingAnalyser(NewsAnalyser):
         pattern = r'^-{3,}\s*\n(.*?)\n-{3,}$'
         match = re.search(pattern, response_text, re.DOTALL | re.MULTILINE)
         if not match:
-            print(f"No structure resposne found from {response_text}")
+            print(f"No structure resposne found from llm response:\n{response_text}")
             return None
         
         try:
             return json.loads(match.group(1))
         except json.JSONDecodeError as e:
-            print(f"Failed to decode {e}")
+            print(f"Failed to decode JSON struct.\n{match.group(1)}\nError: {e}")
             return None
 
     def analyse(self, html_path: str) -> dict:
@@ -96,4 +97,4 @@ def main():
     print(f"\n✅ Analysis result for {article_path}:")
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
-main()
+# main()

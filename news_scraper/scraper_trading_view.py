@@ -10,8 +10,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support    import expected_conditions as EC
 
 import undetected_chromedriver as uc
-from lru_cache import LRUCache
-from interface import NewsScraper
+from .lru_cache import LRUCache
+from .interface import NewsScraper
 
 
 class TradingViewScraper(NewsScraper):
@@ -20,7 +20,7 @@ class TradingViewScraper(NewsScraper):
         self.password = password
         self.cookies_path = cookies_path
         self.driver = None
-        self.cache = LRUCache(20)
+        self.article_cache = LRUCache(20)
 
     def _start_driver(self):
         options = uc.ChromeOptions()
@@ -42,7 +42,7 @@ class TradingViewScraper(NewsScraper):
         text = re.sub(r'[<>:"/\\|?*\s,\.]', '_', text.strip("'"))
         return text[:max_length]
     
-    def login(self) -> bool:
+    def _new_login(self) -> bool:
         self.driver = self._start_driver()
         wait = WebDriverWait(self.driver, 20)
 
@@ -56,6 +56,7 @@ class TradingViewScraper(NewsScraper):
             self.driver.find_element(By.NAME, "id_password").send_keys(self.password + "\n")
 
             wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".tv-lightweight-charts")))
+            input("Enter to continue")
             self._save_cookies()
             print("[+] Logged in successfully.")
             return True
@@ -65,38 +66,89 @@ class TradingViewScraper(NewsScraper):
             self.driver.quit()
             return False
 
+    def login(self) -> bool:
+        wait = WebDriverWait(self.driver, 20)
+
+        if os.path.exists(self.cookies_path):
+            self.driver = self._start_driver()
+            self.driver.get("https://www.tradingview.com")
+            try:
+                self._load_cookies()
+                self.driver.refresh()
+
+                WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, ".tv-lightweight-charts"))
+                )
+                print("[+] Logged in using saved cookies.")
+
+                return True
+            except Exception:
+                print("[!] Failed to login with cookies. Logging in manually.")
+                traceback.print_exc()  # shows full traceback
+                self.driver.quit()
+                return False
+
+        # Start fresh and log in
+        return self._new_login()
 
     def fetch_news(self, limit=5) -> List[str]:
-        self.driver.get("https://www.tradingview.com/news-flow/")
-        time.sleep(5)
+        print("\n" + "="*50)
+        print(f"Starting new scan(www.tradingview.com) at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print("="*50)
 
-        news_elements = self.driver.find_elements(By.CSS_SELECTOR, ".card-HY0D0owe")
-        links = [el.get_attribute("href") for el in news_elements if el.get_attribute("href")]
-        titles = [el.find_element(By.CSS_SELECTOR, ".title-HY0D0owe").text for el in news_elements]
-
-        saved_files = []
-
-        for url, title in zip(links[:limit], titles[:limit]):
-            if self.cache.get(url):
-                continue
-
+        file_paths = []
+        try:
+            url = 'https://www.tradingview.com/news-flow/'
             self.driver.get(url)
-            time.sleep(5)
-            try:
-                WebDriverWait(self.driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, ".body-KX2tCBZq")))
-                fname = self._slugify(title)
-                html_path = f"output/{fname}.html"
 
-                with open(html_path, "w", encoding="utf-8") as f:
-                    f.write(self.driver.page_source)
+            # wait page to load
+            WebDriverWait(self.driver, 15).until(
+                EC.presence_of_element_located((By.CLASS_NAME, "card-HY0D0owe"))
+            )
 
-                self.driver.save_screenshot(f"output/{fname}.png")
-                self.cache.put(url)
-                saved_files.append(html_path)
-            except Exception as e:
-                print(f"[!] Failed to read article: {e}")
+            new_items = self.driver.find_elements(By.CSS_SELECTOR, ".card-HY0D0owe")
+            links = [el.get_attribute("href") for el in new_items if el.get_attribute("href")]
+            titles = [el.find_element(By.CSS_SELECTOR, ".title-HY0D0owe").text for el in new_items]
+            
+            new_articles_found = 0
+            for link, title in zip(links[:limit], titles[:limit]):
+                # Skip if article is already in cache
+                if self.article_cache.get(link):
+                    print(f"\nSkipping cached article: {link}")
+                    continue
 
-        return saved_files
+                print(f"\nReading new article.")
+                print(f"title: {title}\nlink: {link}\n")
+
+                try:
+                    self.driver.get(link)
+                    WebDriverWait(self.driver, 5).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, ".body-KX2tCBZq")))
+                    
+                    fname = self._slugify(title)
+
+                    # Save page HTML to file
+                    html_path = f"output/{fname}.html"
+                    with open(html_path, "w", encoding="utf-8") as f:
+                        f.write(self.driver.page_source)
+
+                    # Save screenshots
+                    # self.driver.save_screenshot(f"output/{fname}.png")
+
+                    # Add to cache
+                    self.article_cache.put(link)
+                    file_paths.append(html_path)
+                    new_articles_found += 1
+                except Exception as e:
+                    print(f"Failed to read article: {e}")
+
+            if new_articles_found == 0:
+                print("\nNo new articles found in this scan")
+
+        except Exception as e:
+            print(f"An error occurred when reading new messages: {e}")
+
+        return file_paths
 
 def main():
     USERNAME = os.getenv("TRADE_VIEW_USER")
@@ -106,7 +158,9 @@ def main():
     if not scraper.login():
         return
 
-    articles = scraper.fetch_news(limit=5)
-    print(articles)
+    while True:
+        articles = scraper.fetch_news(limit=5)
+        print(articles)
+        time.sleep(3)
 
 # main()
