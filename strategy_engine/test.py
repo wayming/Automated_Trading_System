@@ -1,52 +1,145 @@
 import os
 import json
-import re
-import requests
+import time
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from bs4 import BeautifulSoup
+from urllib.parse import urlparse
 
-resp = """
-摘要：
--------------------------------------------------
-{
-  "stock_code": "MMSC.BK",
-  "stock_name": "Metro Systems Corporation",
-  "analysis": {
-    "short_term": {
-      "score": "+15",
-      "driver": "季度盈利116百万泰铢，显示公司短期盈利能力",
-      "risk": "未披露具体业务增长来源，可能存在一次性收益"
-    },
-    "mid_term": {
-      "score": "+25",
-      "driver": "持续盈利表明基本面稳健，可能吸引中期投资者",
-      "risk": "缺乏具体订单或项目细节，难以验证可持续性"
-    },
-    "long_term": {
-      "score": "+10",
-      "driver": "盈利记录可能反映行业需求稳定",
-      "risk": "未提及技术创新或市场扩张计划，长期竞争力不明确"
-    }
-  },
-  "alerts": [
-    "未披露具体业务部门表现",
-    "未提供未来业绩指引"
-  ]
-}
--------------------------------------------------
+class TwitterScraper:
+    def __init__(self, username, headless=True):
+        self.username = username
+        self.cookie_file = f"twitter_cookies_{username}.json"
+        self.url = f"https://twitter.com/{username}"
+        self.driver = self._init_driver(headless)
+        
+    def _init_driver(self, headless):
+        options = Options()
+        if headless:
+            options.add_argument("--headless")
+        options.add_argument("--disable-notifications")
+        options.add_argument("--lang=en-US")
+        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+        
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
+        driver.set_page_load_timeout(30)
+        return driver
+    
+    def _save_cookies(self):
+        cookies = self.driver.get_cookies()
+        with open(self.cookie_file, 'w') as f:
+            json.dump(cookies, f)
+        print("Cookies saved successfully")
+    
+    def _load_cookies(self):
+        if not os.path.exists(self.cookie_file):
+            return False
+            
+        with open(self.cookie_file, 'r') as f:
+            cookies = json.load(f)
+            
+        self.driver.get("https://twitter.com")
+        for cookie in cookies:
+            if 'domain' in cookie and cookie['domain'].startswith('.'):
+                cookie['domain'] = cookie['domain'][1:]
+            try:
+                self.driver.add_cookie(cookie)
+            except Exception as e:
+                print(f"Error adding cookie: {e}")
+        return True
+    
+    def login_manually(self):
+        print("Please log in to Twitter manually...")
+        self.driver.get("https://twitter.com/login")
+        
+        try:
+            # Wait for either login success or 2FA page
+            WebDriverWait(self.driver, 60).until(
+                lambda d: "home" in d.current_url or 
+                         "account/access" in d.current_url or
+                         d.find_elements(By.XPATH, "//*[contains(text(), 'Enter your phone')]")
+            )
+            self._save_cookies()
+            print("Login successful!")
+        except Exception as e:
+            print(f"Login timeout or failed: {str(e)}")
+            raise
+    
+    def _wait_for_tweets(self):
+        """Wait for tweets to load on the page"""
+        try:
+            WebDriverWait(self.driver, 15).until(
+                EC.presence_of_all_elements_located((By.XPATH, "//article[@data-testid='tweet']"))
+            )
+            return True
+        except:
+            print("No tweets found within timeout period")
+            return False
+    
+    def _scroll_to_bottom(self):
+        """Scroll to bottom with dynamic wait"""
+        last_height = self.driver.execute_script("return document.body.scrollHeight")
+        while True:
+            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            
+            # Wait for new content to load
+            try:
+                WebDriverWait(self.driver, 5).until(
+                    lambda d: d.execute_script("return document.body.scrollHeight") > last_height
+                )
+                last_height = self.driver.execute_script("return document.body.scrollHeight")
+            except:
+                break  # No more content loaded
+    
+    def scrape_tweets(self, max_tweets=10):
+        if not self._load_cookies():
+            self.login_manually()
+        
+        self.driver.get(self.url)
+        
+        if not self._wait_for_tweets():
+            return []
+        
+        self._scroll_to_bottom()
+        
+        soup = BeautifulSoup(self.driver.page_source, 'html.parser')
+        tweets = []
+        
+        for tweet in soup.find_all("article", {"data-testid": "tweet"})[:max_tweets]:
+            try:
+                content = tweet.find("div", {"data-testid": "tweetText"}).get_text()
+                time_element = tweet.find("time")
+                
+                tweets.append({
+                    'content': content,
+                    'timestamp': time_element['datetime'] if time_element else None,
+                    'url': f"https://twitter.com{time_element.parent['href']}" if time_element else None
+                })
+            except Exception as e:
+                print(f"Error parsing tweet: {str(e)}")
+        
+        return tweets
+    
+    def close(self):
+        self.driver.quit()
 
-结论：
-该季度盈利公告显示公司短期财务表现良好，但缺乏具体业务细节和未来指引限制了中长期评分的提升。投资者需关注后续业务细节披露以验证盈利质量。
-"""
-def extract_structured_response(response_text):
-    pattern = r'^-{3,}\s*\n(.*?)\n-{3,}$'
-    match = re.search(pattern, response_text, re.DOTALL | re.MULTILINE)
-    if not match:
-        print(f"No structure resposne found from {response_text}")
-        return None
+if __name__ == "__main__":
+    scraper = TwitterScraper("elonmusk", headless=False)
     
     try:
-        return json.loads(match.group(1))
-    except json.JSONDecodeError as e:
-        print(f"Failed to decode JSON struct.\n{match.group(1)}\nError: {e}")
-        return None
-
-print(extract_structured_response(resp))
+        tweets = scraper.scrape_tweets(max_tweets=5)
+        print(f"\nScraped {len(tweets)} tweets:")
+        for i, tweet in enumerate(tweets, 1):
+            print(f"\n{i}. [{tweet['timestamp']}]")
+            print(tweet['content'])
+            print(f"URL: {tweet['url']}")
+    except Exception as e:
+        print(f"Error during scraping: {str(e)}")
+    finally:
+        scraper.close()

@@ -10,3 +10,6 @@ news_scraper/__pycache__/
 strategy_engine/__pycache__/
 notes
 backup/  
+tweets.json
+.gitignore
+twitter_cookies_elonmusk.json

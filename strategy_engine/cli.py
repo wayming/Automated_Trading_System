@@ -131,7 +131,7 @@ def live_trade():
     
     # 交易逻辑
     tickers = ["AAPL", "GOOG", "MSFT"]
-    portfolio = executor.get_portfolio()
+    portfolio = executor.get_portfolio()ex
     
     for ticker in tickers:
         current_price = executor.get_market_price(ticker)
