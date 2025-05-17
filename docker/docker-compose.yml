@@ -1,19 +1,50 @@
 version: "3.8"
 services:
-  scraper:
+  ivscraper:
     build:
       context: ../  # Set build context to project root
-      dockerfile: docker/Dockerfile.iv
+      dockerfile: docker/Dockerfile.scraper
     container_name: python-scraper-iv
     volumes:
       - ../output:/app/output  # Mount the current directory to /app in the container
     environment:
       - DISPLAY=:99  # If running headlessly or using Xvfb
-    ports:
-      - "5000:5000"  # Example port forwarding (if needed)
+    # ports:
+    #   - "5000:5000"  # Example port forwarding (if needed)
     networks:
       - scraper-network
     restart: always  # Restart container if it crashes
+    # command: >
+    #   xvfb-run -a python -m news_scraper.scraper_investing
+    command: >
+      bash -c "
+        Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp &
+        export DISPLAY=:99
+        python -m news_scraper.scraper_investing
+      "
+
+  tvscraper:
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.scraper
+    container_name: python-scraper-tv
+    volumes:
+      - ../output:/app/output  # Mount the current directory to /app in the container
+    environment:
+      - DISPLAY=:99  # If running headlessly or using Xvfb
+    # ports:
+    #   - "5000:5000"  # Example port forwarding (if needed)
+    networks:
+      - scraper-network
+    restart: always  # Restart container if it crashes
+    # command: >
+    #   xvfb-run -a python -m news_scraper.scraper_investing
+    command: >
+      bash -c "
+        Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp &
+        export DISPLAY=:99
+        python -m news_scraper.scraper_trading_view
+      "
 
 networks:
   scraper-network:

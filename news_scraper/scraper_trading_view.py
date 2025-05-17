@@ -15,7 +15,7 @@ from .interface import NewsScraper
 
 
 class TradingViewScraper(NewsScraper):
-    def __init__(self, username: str, password: str, cookies_path="output/cookies.pkl"):
+    def __init__(self, username: str, password: str, cookies_path="output/trading_view_cookies.pkl"):
         self.username = username
         self.password = password
         self.cookies_path = cookies_path
@@ -163,4 +163,4 @@ def main():
         print(articles)
         time.sleep(3)
 
-# main()
+main()

@@ -55,12 +55,19 @@ RUN pip install --no-cache-dir \
     requests \
     beautifulsoup4
 
-# Set the working directory
-WORKDIR /app
+RUN useradd -m -u 1000 appuser
 
 # Copy the Python script into the container
 COPY ../news_scraper /app/news_scraper
+RUN chown -R appuser:appuser /app
+
+RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
+
+# Switch to the user
+USER appuser
+ENV HOME=/app
+WORKDIR /app
 
 # Run the Python script when the container starts
-# CMD ["xvfb-run", "-a", "-v", "python", "-m", "news_scraper.scraper_investing"]
+# CMD ["xvfb-run", "-a", "python", "-m", "news_scraper.scraper_investing"]
 CMD ["tail", "-f", "/dev/null"]
