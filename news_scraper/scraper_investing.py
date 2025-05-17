@@ -13,7 +13,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from .lru_cache import LRUCache
 from .interface import NewsScraper
-
+import traceback
 
 class InvestingScraper(NewsScraper):
     def __init__(self):
@@ -31,14 +31,20 @@ class InvestingScraper(NewsScraper):
         options.add_argument("--disable-gpu")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-
+        options.add_argument("--disable-software-rasterizer")  # Disable software rasterization
+        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36")
+        
         # options.add_argument("--headless=new")
 
-        self.driver = uc.Chrome(options=options)
+        self.driver = uc.Chrome(options=options, use_subprocess=True)
 
         # Avoid loading js which blocks the requests
         self.driver.execute_cdp_cmd("Network.setBlockedURLs", {"urls": ["*.js"]})
         self.driver.execute_cdp_cmd("Network.enable", {})
+    
+        # Enable logging of browser console messages
+        self.driver.execute_cdp_cmd('Log.enable', {})
+
         return self.driver
      
     def _slugify(self, text, max_length=100):
@@ -60,14 +66,16 @@ class InvestingScraper(NewsScraper):
             url = 'https://au.investing.com/news/headlines'
             self.driver.get(url)
 
+            print("Waiting page to load")
             # wait page to load
-            WebDriverWait(self.driver, 15).until(
+            WebDriverWait(self.driver, 60).until(
                 EC.text_to_be_present_in_element(
                     (By.CSS_SELECTOR, "h1.text-xl\\/7.sm\\:text-3xl\\/8.font-bold"), 
                     "Breaking News"
                 )
             )
-            
+            print("Page loaded")
+
             # Extract news (adjust selectors)
             news_items = self.driver.find_elements(By.CSS_SELECTOR, '.inline-block')
             links = [el.get_attribute("href") for el in news_items if el.get_attribute("href")]
@@ -103,7 +111,7 @@ class InvestingScraper(NewsScraper):
                     # self.driver.save_screenshot(f"output/{fname}.png")
 
                     # Add to cache
-                    self.article_cache.put(url)
+                    self.article_cache.put(link)
                     new_articles_found += 1
                 except Exception as e:
                     print(f"Failed to read article: {e}")
@@ -113,7 +121,9 @@ class InvestingScraper(NewsScraper):
                 raise
             
         except Exception as e:
+            self.driver.save_screenshot(f"output/investing_error.png")
             print(f"An error occurred when reading new messages: {e}")
+
 
         return file_paths
     
@@ -128,4 +138,4 @@ def main():
         print(articles)
         time.sleep(3)
 
-# main()
+main()

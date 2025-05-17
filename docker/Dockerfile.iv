@@ -1,0 +1,66 @@
+# Use a Python base image
+FROM python:3.9-slim
+
+# Set environment variable to prevent Python from writing pyc files
+ENV PYTHONUNBUFFERED 1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    wget \
+    curl \
+    unzip \
+    libx11-dev \
+    libxext6 \
+    libxi6 \
+    libgdk-pixbuf2.0-0 \
+    libgtk-3-0 \
+    libgbm-dev \
+    libnss3 \
+    libxss1 \
+    libasound2 \
+    libxtst6 \
+    libpng-dev \
+    fonts-liberation \
+    libappindicator3-1 \
+    libgdk-pixbuf2.0-0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libatspi2.0-0 \
+    xdg-utils \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y \
+    gpg
+
+# Add Google Chrome’s official signing key and repo
+RUN curl -fsSL https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google.gpg \
+ && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google.gpg] http://dl.google.com/linux/chrome/deb/ stable main" \
+    > /etc/apt/sources.list.d/google-chrome.list
+
+# Install Chrome from the official repo
+RUN apt-get update && apt-get install -y google-chrome-stable --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y \
+    curl unzip gnupg wget xvfb libxi6 libgconf-2-4 libnss3 libxss1 libasound2 fonts-liberation \
+    libappindicator3-1 xdg-utils libu2f-udev libvulkan1 libxrandr2 libatk-bridge2.0-0 libgtk-3-0 \
+    chromium chromium-driver
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir \
+    selenium \
+    undetected-chromedriver \
+    requests \
+    beautifulsoup4
+
+# Set the working directory
+WORKDIR /app
+
+# Copy the Python script into the container
+COPY ../news_scraper /app/news_scraper
+
+# Run the Python script when the container starts
+# CMD ["xvfb-run", "-a", "-v", "python", "-m", "news_scraper.scraper_investing"]
+CMD ["tail", "-f", "/dev/null"]
