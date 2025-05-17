@@ -45,7 +45,14 @@ def run_backtest():
     pass
 
 def execute_trade_for_event(trade_executor, scraper, analyser, risk_manager):
-    news = scraper.fetch_news(limit=5)
+    try :
+        time.sleep(5)
+        news = scraper.fetch_news(limit=5)
+    except Exception as e:
+        print("Error when reading news. Reconnect")
+        time.sleep(5)
+        scraper.login()
+
     for n in news:
         try:
             print(f"\nAnalyse news {n}")
@@ -64,9 +71,15 @@ def execute_trade_for_event(trade_executor, scraper, analyser, risk_manager):
         if 'analysis' in analyse_result and 'short_term' in analyse_result['analysis']:
             try:
                 ticker = analyse_result.get('stock_code', 'Unknown')
+                if ticker is None:
+                    print("No impacted stock")
+                    continue
 
                 # Extract numeric value from [+30] format
                 score_str = analyse_result['analysis']['short_term']['score']
+                if score_str is None:
+                    print("Not a valid score format")
+                    continue
                 score = int(re.search(r'[+-]?\d+', score_str).group())
                 
                 if score > 50:
@@ -106,17 +119,15 @@ def mock_trade():
 
     news_sources = []
 
-    in_scraper = InvestingScraper()
-    if not in_scraper.login():
-        return 
-    news_sources.append((in_scraper, InvestingAnalyser(DS_API_KEY, "prompt.txt")))
+    # in_scraper = InvestingScraper()
+    # if not in_scraper.login():
+    #     return 
+    # news_sources.append((in_scraper, InvestingAnalyser(DS_API_KEY, "prompt.txt")))
 
     tv_scraper = TradingViewScraper(TV_USERNAME, TV_PASSWORD)
     if not tv_scraper.login():
         return
     news_sources.append((tv_scraper, TradingViewAnalyser(DS_API_KEY, "prompt.txt")))
-
-
 
     while True:
         for source in news_sources:
@@ -131,7 +142,7 @@ def live_trade():
     
     # 交易逻辑
     tickers = ["AAPL", "GOOG", "MSFT"]
-    portfolio = executor.get_portfolio()ex
+    portfolio = executor.get_portfolio()
     
     for ticker in tickers:
         current_price = executor.get_market_price(ticker)

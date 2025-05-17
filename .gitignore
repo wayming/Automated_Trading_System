@@ -13,3 +13,5 @@ backup/
 tweets.json
 .gitignore
 twitter_cookies_elonmusk.json
+in.log
+tv.log

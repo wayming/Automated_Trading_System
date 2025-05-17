@@ -110,6 +110,7 @@ class InvestingScraper(NewsScraper):
 
             if new_articles_found == 0:
                 print("\nNo new articles found in this scan")
+                raise
             
         except Exception as e:
             print(f"An error occurred when reading new messages: {e}")
