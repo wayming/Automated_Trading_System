@@ -68,10 +68,11 @@ class TradingViewAnalyser(NewsAnalyser):
         response = self._send_to_llm(prompt)
 
         result = self._extract_structured_response(response)
-        with open("trading_view_analyser.log", "a", encoding="utf-8") as f:
+        with open("output/investing_analyser.log", "a", encoding="utf-8") as f:
             f.write("\n\n" + ">"*80 + "\n")
-            f.write(prompt)
-            f.write(json.dumps(result, ensure_ascii=False))
+            f.write("Full Response:\n")
+            f.write(response)
+            # f.write(json.dumps(result, ensure_ascii=False))
             f.write("\n" + ">"*80 + "\n\n")
         return result
 
@@ -80,9 +81,10 @@ def consumer_callback(ch, method, properties, body):
     article_text = body.decode()
     print("[Consumer] Received HTML content.")
 
+    this_dir = Path(__file__).parent
     analyser = TradingViewAnalyser(
         api_key=os.getenv("DEEPSEEK_API_KEY"),
-        prompt_path="prompt.txt"
+        prompt_path=this_dir/"prompt.txt"
     )
 
     result = analyser.analyse(article_text)

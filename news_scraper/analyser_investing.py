@@ -82,10 +82,11 @@ class InvestingAnalyser(NewsAnalyser):
         response = self._send_to_llm(prompt)
 
         result = self._extract_structured_response(response)
-        with open("investing_analyser.log", "a", encoding="utf-8") as f:
+        with open("output/investing_analyser.log", "a", encoding="utf-8") as f:
             f.write("\n\n" + ">"*80 + "\n")
-            f.write(prompt)
-            f.write(json.dumps(result, ensure_ascii=False))
+            f.write("Full Response:\n")
+            f.write(response)
+            # f.write(json.dumps(result, ensure_ascii=False))
             f.write("\n" + ">"*80 + "\n\n")
         return result
 
