@@ -2,6 +2,7 @@ import os
 import json
 import re
 import requests
+import pika
 
 from bs4                import BeautifulSoup
 from requests.adapters  import HTTPAdapter
@@ -86,15 +87,28 @@ class InvestingAnalyser(NewsAnalyser):
             f.write(response)
         return result
 
+def consumer_callback(ch, method, properties, body):
+    article_text = body.decode()
+    print("[Consumer] Received HTML content.")
 
-def main():
-    API_KEY = os.getenv("DEEPSEEK_API_KEY")
+    analyser = InvestingAnalyser(
+        api_key=os.getenv("DEEPSEEK_API_KEY"),
+        prompt_path="prompt.txt"
+    )
 
-    analyser = InvestingAnalyser(API_KEY, "prompt.txt")
-
-    article_path = "output/Walt_Disney_shares_gain_8%_as_earnings__outlook_beat_estimates.html"
-    result = analyser.analyse(article_path)
-    print(f"\n✅ Analysis result for {article_path}:")
+    result = analyser.analyse(article_text)
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
-# main()
+
+
+def main():
+    print("[Consumer] Connecting to RabbitMQ...")
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
+    channel.queue_declare(queue='iv_articles')
+    channel.basic_consume(queue='iv_articles', on_message_callback=consumer_callback, auto_ack=True)
+    print("[Consumer] Waiting for messages...")
+    channel.start_consuming()
+
+if __name__ == "__main__":
+    main()

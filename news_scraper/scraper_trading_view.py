@@ -12,6 +12,7 @@ from selenium.webdriver.support    import expected_conditions as EC
 import undetected_chromedriver as uc
 from .lru_cache import LRUCache
 from .interface import NewsScraper
+import pika
 
 
 class TradingViewScraper(NewsScraper):
@@ -21,6 +22,8 @@ class TradingViewScraper(NewsScraper):
         self.cookies_path = cookies_path
         self.driver = None
         self.article_cache = LRUCache(20)
+        self.queue_name = "tv_articles"
+        self._connect_to_rabbitmq()
 
     def _start_driver(self):
         options = uc.ChromeOptions()
@@ -65,6 +68,21 @@ class TradingViewScraper(NewsScraper):
             traceback.print_exc()  # shows full traceback
             self.driver.quit()
             return False
+
+    def _connect_to_rabbitmq(self):
+        while True:
+            try:
+                print("[Producer] Connecting to RabbitMQ...")
+                self.rabbit_connection = pika.BlockingConnection(
+                    pika.ConnectionParameters(host="rabbitmq")
+                )
+                self.rabbit_channel = self.rabbit_connection.channel()
+                self.rabbit_channel.queue_declare(queue=self.queue_name)
+                print("[Producer] Connected to RabbitMQ.")
+                break
+            except pika.exceptions.AMQPConnectionError:
+                print("[Producer] Waiting for RabbitMQ...")
+                time.sleep(2)
 
     def login(self) -> bool:
         wait = WebDriverWait(self.driver, 20)
@@ -124,16 +142,28 @@ class TradingViewScraper(NewsScraper):
                     self.driver.get(link)
                     WebDriverWait(self.driver, 5).until(
                         EC.presence_of_element_located((By.CSS_SELECTOR, ".body-KX2tCBZq")))
-                    
-                    fname = self._slugify(title)
-
-                    # Save page HTML to file
-                    html_path = f"output/{fname}.html"
-                    with open(html_path, "w", encoding="utf-8") as f:
-                        f.write(self.driver.page_source)
 
                     # Save screenshots
                     # self.driver.save_screenshot(f"output/{fname}.png")
+                    
+                    # Save page HTML to file
+                    fname = self._slugify(title)
+                    html_path = f"output/{fname}.html"
+                    html_content = self.driver.page_source
+                    
+                    # Save to file 
+                    with open(html_path, "w", encoding="utf-8") as f:
+                        f.write(html_content)
+                    print(f"Saved HTML to {html_path}")
+                    file_paths.append(html_path)
+
+                    # Send HTML to RabbitMQ
+                    self.rabbit_channel.basic_publish(
+                        exchange='',
+                        routing_key=self.queue_name,
+                        body=html_content.encode('utf-8')
+                    )
+                    print(f"Sent article to queue: {fname}")
 
                     # Add to cache
                     self.article_cache.put(link)

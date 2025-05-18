@@ -13,5 +13,5 @@ class NewsScraper(ABC):
 
 class NewsAnalyser(ABC):
     @abstractmethod
-    def analyse(self, html_path: str) -> dict:
+    def analyse(self, html_text: str) -> dict:
         pass

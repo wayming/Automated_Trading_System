@@ -2,6 +2,7 @@ import os
 import json
 import re
 import requests
+import pika
 
 from bs4                import BeautifulSoup
 from requests.adapters  import HTTPAdapter
@@ -19,8 +20,8 @@ class TradingViewAnalyser(NewsAnalyser):
             "Content-Type": "application/json"
         }
 
-    def _extract_article(self, html_path):
-        with open(html_path, 'r', encoding='utf-8') as f:
+    def _extract_article(self, html_text):
+        with open(html_text, 'r', encoding='utf-8') as f:
             soup = BeautifulSoup(f.read(), 'html.parser')
 
         title = soup.find('h1', class_='title-KX2tCBZq')
@@ -68,19 +69,36 @@ class TradingViewAnalyser(NewsAnalyser):
         response = self._send_to_llm(prompt)
 
         result = self._extract_structured_response(response)
-        with open(html_path.replace(".html", ".resp"), "w", encoding="utf-8") as f:
-            f.write(response)
+        with open("trading_view_analyser.log", "a", encoding="utf-8") as f:
+            f.write("\n\n" + ">"*80 + "\n")
+            f.write(prompt)
+            f.write(json.dumps(result, ensure_ascii=False))
+            f.write("\n" + ">"*80 + "\n\n")
         return result
 
 
-def main():
-    API_KEY = os.getenv("DEEPSEEK_API_KEY")
+def consumer_callback(ch, method, properties, body):
+    article_text = body.decode()
+    print("[Consumer] Received HTML content.")
 
-    analyser = TradingViewAnalyser(API_KEY, "prompt.txt")
+    analyser = TradingViewAnalyser(
+        api_key=os.getenv("DEEPSEEK_API_KEY"),
+        prompt_path="prompt.txt"
+    )
 
-    article_path = "output/Tesla_launches_cheaper_Model_Y_vehicle_in_the_US.html"
-    result = analyser.analyse(article_path)
-    print(f"\n✅ Analysis result for {article_path}:")
+    result = analyser.analyse(article_text)
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
-# main()
+
+def main():
+    print("[Consumer] Connecting to RabbitMQ...")
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
+    channel.queue_declare(queue='tv_articles')
+    channel.basic_consume(queue='tv_articles', on_message_callback=consumer_callback, auto_ack=True)
+    print("[Consumer] Waiting for messages...")
+    channel.start_consuming()
+
+
+if __name__ == "__main__":
+    main()

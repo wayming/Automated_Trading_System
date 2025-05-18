@@ -53,12 +53,13 @@ RUN pip install --no-cache-dir \
     selenium \
     undetected-chromedriver \
     requests \
-    beautifulsoup4
+    beautifulsoup4 \
+    pika
 
 RUN useradd -m -u 1000 appuser
 
 # Copy the Python script into the container
-COPY ../news_scraper /app/news_scraper
+COPY news_scraper /app/news_scraper
 RUN chown -R appuser:appuser /app
 
 RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix

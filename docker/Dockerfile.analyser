@@ -1,0 +1,22 @@
+FROM python:3.9-slim
+
+# Set environment variable to prevent Python from writing pyc files
+ENV PYTHONUNBUFFERED 1
+
+# Install dependencies
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install pika requests beautifulsoup4 lxml
+
+RUN useradd -m -u 1000 appuser
+
+# Copy the Python script into the container
+COPY news_scraper /app/news_scraper
+RUN chown -R appuser:appuser /app
+
+# Switch to the user
+USER appuser
+ENV HOME=/app
+WORKDIR /app
+
+# Environment variable expected: DEEPSEEK_API_KEY
+CMD ["tail", "-f", "/dev/null"]
