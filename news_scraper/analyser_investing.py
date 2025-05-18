@@ -8,7 +8,7 @@ from bs4                import BeautifulSoup
 from requests.adapters  import HTTPAdapter
 from urllib3.util.retry import Retry
 from .interface          import NewsAnalyser
-
+from pathlib import Path
 
 class InvestingAnalyser(NewsAnalyser):
     def __init__(self, api_key: str, prompt_path: str):
@@ -20,9 +20,8 @@ class InvestingAnalyser(NewsAnalyser):
             "Content-Type": "application/json"
         }
 
-    def _extract_article(self, html_path):
-        with open(html_path, 'r', encoding='utf-8') as f:
-            soup = BeautifulSoup(f.read(), 'html.parser')
+    def _extract_article(self, html_text):
+        soup = BeautifulSoup(html_text, 'html.parser')
 
         title_tag = soup.find('h1', id='articleTitle')
         title = title_tag.get_text(strip=True) if title_tag else ''
@@ -73,9 +72,9 @@ class InvestingAnalyser(NewsAnalyser):
             print(f"Failed to decode JSON struct.\n{match.group(1)}\nError: {e}")
             return None
 
-    def analyse(self, html_path: str) -> dict:
+    def analyse(self, html_text: str) -> dict:
 
-        article = self._extract_article(html_path)
+        article = self._extract_article(html_text)
         with open(self.prompt_path, 'r', encoding='utf-8') as f:
             base_prompt = f.read()
 
@@ -83,17 +82,21 @@ class InvestingAnalyser(NewsAnalyser):
         response = self._send_to_llm(prompt)
 
         result = self._extract_structured_response(response)
-        with open(html_path.replace(".html", ".resp"), "w", encoding="utf-8") as f:
-            f.write(response)
+        with open("investing_analyser.log", "a", encoding="utf-8") as f:
+            f.write("\n\n" + ">"*80 + "\n")
+            f.write(prompt)
+            f.write(json.dumps(result, ensure_ascii=False))
+            f.write("\n" + ">"*80 + "\n\n")
         return result
 
 def consumer_callback(ch, method, properties, body):
     article_text = body.decode()
     print("[Consumer] Received HTML content.")
 
+    this_dir = Path(__file__).parent
     analyser = InvestingAnalyser(
         api_key=os.getenv("DEEPSEEK_API_KEY"),
-        prompt_path="prompt.txt"
+        prompt_path=this_dir/"prompt.txt"
     )
 
     result = analyser.analyse(article_text)

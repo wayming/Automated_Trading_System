@@ -21,8 +21,7 @@ class TradingViewAnalyser(NewsAnalyser):
         }
 
     def _extract_article(self, html_text):
-        with open(html_text, 'r', encoding='utf-8') as f:
-            soup = BeautifulSoup(f.read(), 'html.parser')
+        soup = BeautifulSoup(html_text, 'html.parser')
 
         title = soup.find('h1', class_='title-KX2tCBZq')
         content = soup.find('div', class_='body-KX2tCBZq')
