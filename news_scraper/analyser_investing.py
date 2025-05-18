@@ -7,9 +7,10 @@ import pika
 from bs4                import BeautifulSoup
 from requests.adapters  import HTTPAdapter
 from urllib3.util.retry import Retry
-from .interface          import NewsAnalyser
-from pathlib import Path
+from pathlib            import Path
+from .interface         import NewsAnalyser
 
+QUEUE_TV_ARTICLES = "iv_articles"
 class InvestingAnalyser(NewsAnalyser):
     def __init__(self, api_key: str, prompt_path: str):
         self.api_key = api_key
@@ -90,9 +91,9 @@ class InvestingAnalyser(NewsAnalyser):
             f.write("\n" + ">"*80 + "\n\n")
         return result
 
-def consumer_callback(ch, method, properties, body):
+def analyser_callback(ch, method, properties, body):
     article_text = body.decode()
-    print("[Consumer] Received HTML content.")
+    print("[Analyser_Investing] Received HTML content.")
 
     this_dir = Path(__file__).parent
     analyser = InvestingAnalyser(
@@ -106,12 +107,12 @@ def consumer_callback(ch, method, properties, body):
 
 
 def main():
-    print("[Consumer] Connecting to RabbitMQ...")
+    print("[Analyser_Investing] Connecting to RabbitMQ...")
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
-    channel.queue_declare(queue='iv_articles')
-    channel.basic_consume(queue='iv_articles', on_message_callback=consumer_callback, auto_ack=True)
-    print("[Consumer] Waiting for messages...")
+    channel.queue_declare(queue=QUEUE_TV_ARTICLES)
+    channel.basic_consume(queue=QUEUE_TV_ARTICLES, on_message_callback=analyser_callback, auto_ack=True)
+    print("[Analyser_Investing] Waiting for messages...")
     channel.start_consuming()
 
 if __name__ == "__main__":

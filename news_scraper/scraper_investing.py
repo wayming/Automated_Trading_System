@@ -16,12 +16,20 @@ from .interface import NewsScraper
 import traceback
 import pika
 
+QUEUE_IV_ARTICLES = "iv_articles"
+
 class InvestingScraper(NewsScraper):
-    def __init__(self):
+    def __init__(
+            self,
+            queue_conn: pika.BlockingConnection = None,
+            queue_name = QUEUE_IV_ARTICLES):
         self.driver = None
         self.article_cache = LRUCache(20)
-        self.queue_name = "iv_articles"
-        self._connect_to_rabbitmq()
+        self.queue_name = queue_name
+        
+        if queue_conn != None:
+            self.queue_channel = queue_conn.channel()
+            self.queue_channel.queue_declare(queue=queue_name)
 
     def _start_driver(self):
         options = uc.ChromeOptions()
@@ -53,21 +61,6 @@ class InvestingScraper(NewsScraper):
     def _slugify(self, text, max_length=100):
         text = re.sub(r'[<>:"/\\|?*\s,\.]', '_', text.strip("'"))
         return text[:max_length]
-
-    def _connect_to_rabbitmq(self):
-        while True:
-            try:
-                print("[Producer] Connecting to RabbitMQ...")
-                self.rabbit_connection = pika.BlockingConnection(
-                    pika.ConnectionParameters(host="rabbitmq")
-                )
-                self.rabbit_channel = self.rabbit_connection.channel()
-                self.rabbit_channel.queue_declare(queue=self.queue_name)
-                print("[Producer] Connected to RabbitMQ.")
-                break
-            except pika.exceptions.AMQPConnectionError:
-                print("[Producer] Waiting for RabbitMQ...")
-                time.sleep(2)
 
     def login(self) -> bool:
         self.driver = self._start_driver()
@@ -127,11 +120,12 @@ class InvestingScraper(NewsScraper):
                     file_paths.append(html_path)
 
                     # Send HTML to RabbitMQ
-                    self.rabbit_channel.basic_publish(
-                        exchange='',
-                        routing_key=self.queue_name,
-                        body=html_content.encode('utf-8')
-                    )
+                    if self.queue_channel != None:
+                        self.queue_channel.basic_publish(
+                            exchange='',
+                            routing_key=self.queue_name,
+                            body=html_content.encode('utf-8')
+                        )
                     print(f"Sent article to queue: {fname}")
 
                     # Add to cache
@@ -143,7 +137,6 @@ class InvestingScraper(NewsScraper):
 
             if new_articles_found == 0:
                 print("\nNo new articles found in this scan")
-                raise
             
         except Exception as e:
             self.driver.save_screenshot(f"output/investing_error.png")
@@ -151,17 +144,31 @@ class InvestingScraper(NewsScraper):
 
 
         return file_paths
-    
+
+def rabbit_mq_connect() -> pika.BlockingConnection:
+    while True:
+        try:
+            print("[Scraper_Investing] Connecting to RabbitMQ...")
+            rabbit_connection = pika.BlockingConnection(
+                pika.ConnectionParameters(host="rabbitmq")
+            )
+            print("[Scraper_Investing] Connected to RabbitMQ.")
+            return rabbit_connection
+        except pika.exceptions.AMQPConnectionError:
+            print("[Scraper_Investing] Waiting for RabbitMQ...")
+            time.sleep(2)
+
 
 def main():
-    scraper = InvestingScraper()
+    mq_conn = rabbit_mq_connect()
+    scraper = InvestingScraper(mq_conn, QUEUE_IV_ARTICLES)
     if not scraper.login():
         return
 
     while True:
         articles = scraper.fetch_news(limit=5)
         print(articles)
-        time.sleep(3)
+        time.sleep(10)
 
 if __name__ == "__main__":
     main()

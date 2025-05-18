@@ -3,27 +3,37 @@ import time
 import re
 import pickle
 import traceback
+import argparse
 from typing import List
 
 from selenium.webdriver.common.by  import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support    import expected_conditions as EC
-
 import undetected_chromedriver as uc
+
 from .lru_cache import LRUCache
 from .interface import NewsScraper
 import pika
 
-
+QUEUE_TV_ARTICLES = "tv_articles"
 class TradingViewScraper(NewsScraper):
-    def __init__(self, username: str, password: str, cookies_path="output/trading_view_cookies.pkl"):
+    def __init__(
+            self,
+            username: str,
+            password: str,
+            cookies_path="output/trading_view_cookies.pkl",
+            queue_conn: pika.BlockingConnection = None,
+            queue_name = QUEUE_TV_ARTICLES):
         self.username = username
         self.password = password
         self.cookies_path = cookies_path
         self.driver = None
         self.article_cache = LRUCache(20)
-        self.queue_name = "tv_articles"
-        self._connect_to_rabbitmq()
+        self.queue_name = queue_name
+
+        if queue_conn != None:
+            self.queue_channel = queue_conn.channel()
+            self.queue_channel.queue_declare(queue=queue_name)
 
     def _start_driver(self):
         options = uc.ChromeOptions()
@@ -68,21 +78,6 @@ class TradingViewScraper(NewsScraper):
             traceback.print_exc()  # shows full traceback
             self.driver.quit()
             return False
-
-    def _connect_to_rabbitmq(self):
-        while True:
-            try:
-                print("[Producer] Connecting to RabbitMQ...")
-                self.rabbit_connection = pika.BlockingConnection(
-                    pika.ConnectionParameters(host="rabbitmq")
-                )
-                self.rabbit_channel = self.rabbit_connection.channel()
-                self.rabbit_channel.queue_declare(queue=self.queue_name)
-                print("[Producer] Connected to RabbitMQ.")
-                break
-            except pika.exceptions.AMQPConnectionError:
-                print("[Producer] Waiting for RabbitMQ...")
-                time.sleep(2)
 
     def login(self) -> bool:
         wait = WebDriverWait(self.driver, 20)
@@ -143,9 +138,6 @@ class TradingViewScraper(NewsScraper):
                     WebDriverWait(self.driver, 5).until(
                         EC.presence_of_element_located((By.CSS_SELECTOR, ".body-KX2tCBZq")))
 
-                    # Save screenshots
-                    # self.driver.save_screenshot(f"output/{fname}.png")
-                    
                     # Save page HTML to file
                     fname = self._slugify(title)
                     html_path = f"output/{fname}.html"
@@ -156,13 +148,13 @@ class TradingViewScraper(NewsScraper):
                         f.write(html_content)
                     print(f"Saved HTML to {html_path}")
                     file_paths.append(html_path)
-
-                    # Send HTML to RabbitMQ
-                    self.rabbit_channel.basic_publish(
-                        exchange='',
-                        routing_key=self.queue_name,
-                        body=html_content.encode('utf-8')
-                    )
+                    
+                    if self.queue_channel != None:
+                        self.queue_channel.basic_publish(
+                            exchange='',
+                            routing_key=self.queue_name,
+                            body=html_content.encode('utf-8')
+                        )
                     print(f"Sent article to queue: {fname}")
 
                     # Add to cache
@@ -176,21 +168,57 @@ class TradingViewScraper(NewsScraper):
                 print("\nNo new articles found in this scan")
 
         except Exception as e:
+            self.driver.save_screenshot(f"output/investing_error.png")
             print(f"An error occurred when reading new messages: {e}")
 
         return file_paths
 
+def rabbit_mq_connect() -> pika.BlockingConnection:
+    while True:
+        try:
+            print("[Scraper_Trading_View] Connecting to RabbitMQ...")
+            rabbit_connection = pika.BlockingConnection(
+                pika.ConnectionParameters(host="rabbitmq")
+            )
+            print("[Scraper_Trading_View] Connected to RabbitMQ.")
+            return rabbit_connection
+        except pika.exceptions.AMQPConnectionError:
+            print("[Scraper_Trading_View] Waiting for RabbitMQ...")
+            time.sleep(2)
+
 def main():
+    parser = argparse.ArgumentParser(description="TradingView News Scraper")
+    parser.add_argument("--login", action="store_true", help="Only perform login and exit")
+    args = parser.parse_args()
+
     USERNAME = os.getenv("TRADE_VIEW_USER")
     PASSWORD = os.getenv("TRADE_VIEW_PASS")
+    if not USERNAME or not PASSWORD:
+        print("❌ Missing credentials. Set TRADE_VIEW_USER and TRADE_VIEW_PASS in your environment.")
+        return
+    
+    mq_conn = None
+    if not args.login:
+        mq_conn = rabbit_mq_connect()
 
-    scraper = TradingViewScraper(USERNAME, PASSWORD)
+    scraper = scraper = TradingViewScraper(
+            username="myuser",
+            password="mypass",
+            queue_conn=mq_conn,
+            queue_name=QUEUE_TV_ARTICLES
+)
     if not scraper.login():
+        print("❌ Login failed.")
+        return
+
+    if args.login:
+        print("✅ Login successful. Exiting as requested.")
         return
 
     while True:
         articles = scraper.fetch_news(limit=5)
         print(articles)
-        time.sleep(3)
+        time.sleep(10)
 
-main()
+if __name__ == "__main__":
+    main()

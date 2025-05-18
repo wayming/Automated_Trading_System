@@ -9,8 +9,8 @@ services:
       - ../output:/app/output  # Mount the current directory to /app in the container
     environment:
       - DISPLAY=:99  # If running headlessly or using Xvfb
-    # ports:
-    #   - "5000:5000"  # Example port forwarding (if needed)
+    env_file:
+      - .env
     networks:
       - scraper-network
     restart: always  # Restart container if it crashes
@@ -24,30 +24,29 @@ services:
       rabbitmq:
         condition: service_healthy # RabbitMQ begin to accept connections
 
-  # tvscraper:
-  #   build:
-  #     context: ../  # Set build context to project root
-  #     dockerfile: docker/Dockerfile.scraper
-  #   container_name: python-scraper-tv
-  #   volumes:
-  #     - ../output:/app/output  # Mount the current directory to /app in the container
-  #   environment:
-  #     - DISPLAY=:99  # If running headlessly or using Xvfb
-  #   # ports:
-  #   #   - "5000:5000"  # Example port forwarding (if needed)
-  #   networks:
-  #     - scraper-network
-  #   restart: always  # Restart container if it crashes
-  #   # command: >
-  #   #   xvfb-run -a python -m news_scraper.scraper_investing
-  #   command: >
-  #     bash -c "
-  #       Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp &
-  #       export DISPLAY=:99
-  #       python -m news_scraper.scraper_trading_view
-  #     "
-  #   depends_on:
-  #     - rabbitmq
+  tvscraper:
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.scraper
+    container_name: python-scraper-tv
+    volumes:
+      - ../output:/app/output  # Mount the current directory to /app in the container
+    environment:
+      - DISPLAY=:99  # If running headlessly or using Xvfb
+    env_file:
+      - .env
+    networks:
+      - scraper-network
+    restart: always  # Restart container if it crashes
+    command: >
+      bash -c "
+        Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp &
+        export DISPLAY=:99
+        python -m news_scraper.scraper_trading_view
+      "
+    depends_on:
+      rabbitmq:
+        condition: service_healthy # RabbitMQ begin to accept connections
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -78,6 +77,20 @@ services:
     networks:
       - scraper-network
 
+  tvanalyser:
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.analyser
+    env_file:
+      - .env
+    volumes:
+      - ../output:/app/output  # Mount the current directory to /app in the container
+    command: python -m news_scraper.analyser_trading_view
+    depends_on:
+      rabbitmq:
+        condition: service_healthy # RabbitMQ begin to accept connections
+    networks:
+      - scraper-network
 
 networks:
   scraper-network:
