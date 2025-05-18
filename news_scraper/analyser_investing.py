@@ -9,6 +9,7 @@ from requests.adapters  import HTTPAdapter
 from urllib3.util.retry import Retry
 from pathlib            import Path
 from .interface         import NewsAnalyser
+from datetime           import datetime
 
 QUEUE_TV_ARTICLES = "iv_articles"
 class InvestingAnalyser(NewsAnalyser):
@@ -83,11 +84,12 @@ class InvestingAnalyser(NewsAnalyser):
         response = self._send_to_llm(prompt)
 
         result = self._extract_structured_response(response)
-        with open("output/investing_analyser.log", "a", encoding="utf-8") as f:
+        with open("output/analyser_investing.log", "a", encoding="utf-8") as f:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             f.write("\n\n" + ">"*80 + "\n")
+            f.write(f"Timestamp: {timestamp}\n")
             f.write("Full Response:\n")
             f.write(response)
-            # f.write(json.dumps(result, ensure_ascii=False))
             f.write("\n" + ">"*80 + "\n\n")
         return result
 
