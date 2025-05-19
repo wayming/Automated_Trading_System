@@ -1,0 +1,17 @@
+FROM rust:1.86 as builder
+
+WORKDIR /app
+COPY . .
+
+# Install system dependencies (optional: adjust for Python bindings)
+RUN apt-get update && apt-get install -y pkg-config libssl-dev protobuf-compiler
+RUN cargo build --release
+
+FROM debian:bookworm-slim 
+
+# Optional: install runtime dependencies
+RUN apt-get update && apt-get install -y libssl3 libstdc++6 && apt-get clean
+
+COPY --from=builder /app/target/release/mock_executor /usr/local/bin/
+
+CMD ["mock_executor"]
