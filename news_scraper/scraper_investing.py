@@ -1,3 +1,4 @@
+import os
 import time
 from collections import OrderedDict
 import re
@@ -26,7 +27,9 @@ class InvestingScraper(NewsScraper):
         self.driver = None
         self.article_cache = LRUCache(20)
         self.queue_name = queue_name
-        
+        self.output_dir = "output/investing"
+        os.makedirs(self.output_dir, exist_ok=True)
+
         if queue_conn != None:
             self.queue_channel = queue_conn.channel()
             self.queue_channel.queue_declare(queue=queue_name)
@@ -110,7 +113,7 @@ class InvestingScraper(NewsScraper):
 
                     # Save page HTML to file
                     fname = self._slugify(title)
-                    html_path = f"output/{fname}.html"
+                    html_path = f"{self.output_dir}/{fname}.html"
                     html_content = self.driver.page_source
                     
                     # Save to file 
@@ -166,6 +169,12 @@ def main():
         return
 
     while True:
+        if mq_conn.is_open:
+            mq_conn.process_data_events() #Heartbeat
+        else:
+            print("❌ RabbitMQ connection dropped.")
+            break
+        
         articles = scraper.fetch_news(limit=5)
         print(articles)
         time.sleep(10)

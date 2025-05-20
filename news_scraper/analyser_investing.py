@@ -1,6 +1,8 @@
 import os
 import json
 import re
+import time
+
 import requests
 import pika
 
@@ -10,8 +12,9 @@ from urllib3.util.retry import Retry
 from pathlib            import Path
 from .interface         import NewsAnalyser
 from datetime           import datetime
+from .executor_proxy    import TradeExecutor, MockTradeExecutorProxy
 
-QUEUE_TV_ARTICLES = "iv_articles"
+QUEUE_IV_ARTICLES = "iv_articles"
 class InvestingAnalyser(NewsAnalyser):
     def __init__(self, api_key: str, prompt_path: str):
         self.api_key = api_key
@@ -93,29 +96,86 @@ class InvestingAnalyser(NewsAnalyser):
             f.write("\n" + ">"*80 + "\n\n")
         return result
 
-def analyser_callback(ch, method, properties, body):
-    article_text = body.decode()
-    print("[Analyser_Investing] Received HTML content.")
 
-    this_dir = Path(__file__).parent
-    analyser = InvestingAnalyser(
-        api_key=os.getenv("DEEPSEEK_API_KEY"),
-        prompt_path=this_dir/"prompt.txt"
-    )
+def trade_on_score(analyse_result: str, executor: TradeExecutor):
 
-    result = analyser.analyse(article_text)
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    # Check short term score if analysis exists
+    if 'analysis' in analyse_result and 'short_term' in analyse_result['analysis']:
+        try:
+            ticker = analyse_result.get('stock_code', 'Unknown')
+            if ticker is None:
+                print("No impacted stock")
+                return
 
+            # Extract numeric value from [+30] format
+            score_str = analyse_result['analysis']['short_term']['score']
+            if score_str is None:
+                print("Not a valid score format")
+                return
+            score = int(re.search(r'[+-]?\d+', score_str).group())
+            
+            if score > 50:
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                print(f"\nTimestamp: {timestamp}\n")
+                print(f"Positive Signal for {analyse_result.get('stock_name', 'Unknown')} [{ticker}]\n")
+                print(f"Short Term Score: {score}\n")
+                executor.execute_trade(ticker, "buy", 10.0)
+                # price_data = yf.download(ticker, period="1d", interval="1m")
+                # if price_data.empty or "Close" not in price_data.columns:
+                #     print(f"No data available for {ticker}, skipping.")
+                #     return  # 或者 return，根据上下文跳出或终止
 
+                # # 检查是否符合风险管理规则，决定是否买入
+                # last_price = float(price_data["Close"].iloc[-1])  # 避免 FutureWarning
+                # if risk_manager.check_position_limit(trade_executor.get_portfolio(), ticker, 100):
+                #     trade_executor.buy(ticker, last_price, 100)  # 买入100股
+                #     print(f"cash: {trade_executor.get_cash()}")
+                #     print("portfolio:")
+                #     print(json.dumps(trade_executor.get_portfolio(), indent=2))
+                # else:
+                #     print(f"Not enough balance")
+                #     return
+
+        except (ValueError, AttributeError, KeyError) as e:
+            print("\nCould not parse score value")
+            print("Error details:", e)
+    else:
+        print("\nNo short_term analysis available")
 
 def main():
     print("[Analyser_Investing] Connecting to RabbitMQ...")
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
     channel = connection.channel()
-    channel.queue_declare(queue=QUEUE_TV_ARTICLES)
-    channel.basic_consume(queue=QUEUE_TV_ARTICLES, on_message_callback=analyser_callback, auto_ack=True)
+    channel.queue_declare(queue=QUEUE_IV_ARTICLES)
+    channel.basic_consume(queue=QUEUE_IV_ARTICLES, on_message_callback=analyser_callback, auto_ack=True)
     print("[Analyser_Investing] Waiting for messages...")
     channel.start_consuming()
+
+    print("[Analyser_Investing] Connecting to RabbitMQ...")
+    connection = pika.BlockingConnection(pika.ConnectionParameters(
+        host='rabbitmq',
+        heartbeat=600
+    ))
+    channel = connection.channel()
+    channel.queue_declare(queue=QUEUE_IV_ARTICLES)
+
+    executor = MockTradeExecutorProxy()
+    this_dir = Path(__file__).parent
+    analyser = InvestingAnalyser(
+        api_key=os.getenv("DEEPSEEK_API_KEY"),
+        prompt_path=this_dir/"prompt.txt",
+    )
+
+    print("[Analyser_Investing] Waiting for messages...")
+    while True:
+        method_frame, properties, body = channel.basic_get(QUEUE_IV_ARTICLES, auto_ack=True)
+        if method_frame:
+            result = analyser.analyse(body.decode())
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            trade_on_score(result, executor)
+        else:
+            time.sleep(1)  # No message, wait briefly
+        connection.process_data_events()  # Maintain heartbeat
 
 if __name__ == "__main__":
     main()
