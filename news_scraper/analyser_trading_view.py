@@ -5,6 +5,8 @@ import time
 
 import requests
 import pika
+import logging
+import signal
 
 from bs4                import BeautifulSoup
 from requests.adapters  import HTTPAdapter
@@ -13,6 +15,18 @@ from pathlib            import Path
 from .interface         import NewsAnalyser
 from datetime           import datetime
 from .executor_proxy    import TradeExecutor, MockTradeExecutorProxy
+
+out_dir = 'output' # Mount volume
+
+# Set up logging
+log_file = os.path.join(out_dir, 'analyser_trading_view.log')
+logging.basicConfig(
+    filename=log_file,
+    filemode='a',  # Append mode
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 QUEUE_TV_ARTICLES = "tv_articles"
 class TradingViewAnalyser(NewsAnalyser):
@@ -54,13 +68,13 @@ class TradingViewAnalyser(NewsAnalyser):
         pattern = r'^-{3,}\s*\n(.*?)\n-{3,}$'
         match = re.search(pattern, response_text, re.DOTALL | re.MULTILINE)
         if not match:
-            print(f"No structure resposne found from llm response:\n{response_text}")
+            logger.info(f"No structure resposne found from llm response:\n{response_text}")
             return None
         
         try:
             return json.loads(match.group(1))
         except json.JSONDecodeError as e:
-            print(f"Failed to decode JSON struct.\n{match.group(1)}\nError: {e}")
+            logger.error(f"Failed to decode JSON struct.\n{match.group(1)}\nError: {e}")
             return None
 
     def analyse(self, html_path: str) -> dict:
@@ -73,38 +87,39 @@ class TradingViewAnalyser(NewsAnalyser):
         response = self._send_to_llm(prompt)
 
         result = self._extract_structured_response(response)
-        with open("output/analyser_trading_view.log", "a", encoding="utf-8") as f:
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            f.write("\n\n" + ">"*80 + "\n")
-            f.write(f"Timestamp: {timestamp}\n")
-            f.write("Full Response:\n")
-            f.write(response)
-            f.write("\n" + ">"*80 + "\n\n")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        logger.info("\n\n" + ">"*80 + "\n")
+        logger.info(f"Timestamp: {timestamp}\n")
+        logger.info("Full Response:\n")
+        logger.info(response)
+        logger.info("\n" + ">"*80 + "\n\n")
 
         return result
 
 def trade_on_score(analyse_result: str, executor: TradeExecutor):
-
+    if analyse_result is None:
+        logger.info("No trade operation for empty analysis results")
+        return
+    
     # Check short term score if analysis exists
     if 'analysis' in analyse_result and 'short_term' in analyse_result['analysis']:
         try:
             ticker = analyse_result.get('stock_code', 'Unknown')
             if ticker is None:
-                print("No impacted stock")
+                logger.info("No impacted stock")
                 return
 
             # Extract numeric value from [+30] format
             score_str = analyse_result['analysis']['short_term']['score']
             if score_str is None:
-                print("Not a valid score format")
+                logger.error("Not a valid score format")
                 return
             score = int(re.search(r'[+-]?\d+', score_str).group())
             
-            if score > 50:
+            if score > 0:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                print(f"\nTimestamp: {timestamp}\n")
-                print(f"Positive Signal for {analyse_result.get('stock_name', 'Unknown')} [{ticker}]\n")
-                print(f"Short Term Score: {score}\n")
+                logger.info(f"Positive Signal for {analyse_result.get('stock_name', 'Unknown')} [{ticker}]")
+                logger.info(f"Short Term Score: {score}")
                 executor.execute_trade(ticker, "buy", 10.0)
                 # price_data = yf.download(ticker, period="1d", interval="1m")
                 # if price_data.empty or "Close" not in price_data.columns:
@@ -123,21 +138,13 @@ def trade_on_score(analyse_result: str, executor: TradeExecutor):
                 #     return
 
         except (ValueError, AttributeError, KeyError) as e:
-            print("\nCould not parse score value")
-            print("Error details:", e)
+            logger.error("\nCould not parse score value")
+            logger.error("Error details:", e)
     else:
-        print("\nNo short_term analysis available")
+        logger.info("\nNo short_term analysis available")
 
 def main():
-    print("[Analyser_Trading_View] Connecting to RabbitMQ...")
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
-    channel = connection.channel()
-    channel.queue_declare(queue=QUEUE_TV_ARTICLES)
-    channel.basic_consume(queue=QUEUE_TV_ARTICLES, on_message_callback=analyser_callback, auto_ack=True)
-    print("[Analyser_Trading_View] Waiting for messages...")
-    channel.start_consuming()
-
-    print("[Analyser_Trading_View] Connecting to RabbitMQ...")
+    logger.info("[Analyser_Trading_View] Connecting to RabbitMQ...")
     connection = pika.BlockingConnection(pika.ConnectionParameters(
         host='rabbitmq',
         heartbeat=600
@@ -152,12 +159,12 @@ def main():
         prompt_path=this_dir/"prompt.txt",
     )
 
-    print("[Analyser_Trading_View] Waiting for messages...")
+    logger.info("[Analyser_Trading_View] Waiting for messages...")
     while True:
         method_frame, properties, body = channel.basic_get(QUEUE_TV_ARTICLES, auto_ack=True)
         if method_frame:
             result = analyser.analyse(body.decode())
-            print(json.dumps(result, indent=2, ensure_ascii=False))
+            logger.info(json.dumps(result, indent=2, ensure_ascii=False))
             trade_on_score(result, executor)
         else:
             time.sleep(1)  # No message, wait briefly

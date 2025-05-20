@@ -15,7 +15,7 @@ class TradeExecutorStub(object):
             channel: A grpc.Channel.
         """
         self.ExecuteTrade = channel.unary_unary(
-                '/exectuer.TradeExecutor/ExecuteTrade',
+                '/proto.TradeExecutor/ExecuteTrade',
                 request_serializer=trade__executor__pb2.TradeRequest.SerializeToString,
                 response_deserializer=trade__executor__pb2.TradeResponse.FromString,
                 )
@@ -40,7 +40,7 @@ def add_TradeExecutorServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'exectuer.TradeExecutor', rpc_method_handlers)
+            'proto.TradeExecutor', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
 
 
@@ -59,7 +59,7 @@ class TradeExecutor(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/exectuer.TradeExecutor/ExecuteTrade',
+        return grpc.experimental.unary_unary(request, target, '/proto.TradeExecutor/ExecuteTrade',
             trade__executor__pb2.TradeRequest.SerializeToString,
             trade__executor__pb2.TradeResponse.FromString,
             options, channel_credentials,

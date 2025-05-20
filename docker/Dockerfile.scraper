@@ -1,9 +1,6 @@
 # Use a Python base image
 FROM python:3.9-slim
 
-# Set environment variable to prevent Python from writing pyc files
-ENV PYTHONUNBUFFERED 1
-
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     wget \
@@ -68,6 +65,10 @@ RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
 USER appuser
 ENV HOME=/app
 WORKDIR /app
+
+# Set environment variable to prevent Python from writing pyc files
+ENV PYTHONUNBUFFERED 1
+ENV PYTHONPATH=/app/proto:/app/news_scraper
 
 # Run the Python script when the container starts
 # CMD ["xvfb-run", "-a", "python", "-m", "news_scraper.scraper_investing"]
