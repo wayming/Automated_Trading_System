@@ -1,18 +1,21 @@
 FROM rust:1.86 as builder
 
 WORKDIR /app
-COPY . .
+COPY mock_executor /app/mock_executor
+COPY proto /app/proto
+
+ENV PROTO_DIR /app/proto
 
 # Install system dependencies (optional: adjust for Python bindings)
 RUN apt-get update && apt-get install -y pkg-config libssl-dev protobuf-compiler
-RUN pip install --no-cache-dir grpcio grpcio-tools
-RUN cargo build --release
+RUN cargo build --release --manifest-path mock_executor/Cargo.toml
+
 
 FROM debian:bookworm-slim 
 
 # Optional: install runtime dependencies
 RUN apt-get update && apt-get install -y libssl3 libstdc++6 && apt-get clean
 
-COPY --from=builder /app/target/release/mock_executor /usr/local/bin/
+COPY --from=builder /app/mock_executor/target/release/mock_executor /usr/local/bin/
 
 CMD ["mock_executor"]

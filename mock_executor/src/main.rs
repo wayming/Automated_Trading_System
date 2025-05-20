@@ -1,9 +1,9 @@
-use std::collections::HashMap;
 use tonic::{transport::Server, Request, Response, Status};
-use trading::trader_server::{Trader, TraderServer};
+use trading::trade_executor_server::{TradeExecutor, TradeExecutorServer}; // Correct import
 use trading::{TradeRequest, TradeResponse};
 use dashmap::DashMap;
 use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 
 pub mod trading {
     tonic::include_proto!("trading");
@@ -16,7 +16,7 @@ pub struct TradingEngine {
 }
 
 #[tonic::async_trait]
-impl Trader for TradingEngine {
+impl TradeExecutor for TradingEngine {
     async fn execute_trade(
         &self,
         request: Request<TradeRequest>,
@@ -76,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = TradingEngine::default();
     println!("Server running on [::1]:50051");
     Server::builder()
-        .add_service(TraderServer::new(engine))
+        .add_service(TradeExecutorServer::new(engine))
         .serve("[::]:50051".parse()?)
         .await?;
     Ok(())

@@ -92,13 +92,15 @@ services:
     networks:
       - scraper-network
 
-  # mock_executor:
-  #   build:
-  #     context: ../  # Set build context to project root
-  #     dockerfile: docker/Dockerfile.mock.executor
-  #   ports:
-  #     - "50051:50051"
-
+  mock_executor:
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.mock.executor
+    ports:
+      - "50051:50051"
+    networks:
+      - scraper-network
+      
 networks:
   scraper-network:
     driver: bridge
