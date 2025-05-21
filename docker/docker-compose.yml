@@ -74,6 +74,8 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy # RabbitMQ begin to accept connections
+      mock_executor:
+        condition: service_started
     networks:
       - scraper-network
 
@@ -84,11 +86,13 @@ services:
     env_file:
       - .env
     volumes:
-      - ../output:/app/output  # Mount the current directory to /app in the container
+      - ../output:/app/output  # Mount volume
     command: python -m news_scraper.analyser_trading_view
     depends_on:
       rabbitmq:
         condition: service_healthy # RabbitMQ begin to accept connections
+      mock_executor:
+        condition: service_started
     networks:
       - scraper-network
 
@@ -98,9 +102,25 @@ services:
       dockerfile: docker/Dockerfile.mock.executor
     ports:
       - "50051:50051"
+    volumes:
+      - ../output:/app/output  # Mount volume
+    depends_on:
+      stock_hub:
+        condition: service_started
     networks:
       - scraper-network
-      
+
+  stock_hub:
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.stock.hub
+    ports:
+      - "50052:50052"
+    volumes:
+      - ../output:/app/output  # Mount volume
+    networks:
+      - scraper-network
+
 networks:
   scraper-network:
     driver: bridge

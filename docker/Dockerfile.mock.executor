@@ -19,3 +19,5 @@ RUN apt-get update && apt-get install -y libssl3 libstdc++6 && apt-get clean
 COPY --from=builder /app/mock_executor/target/release/mock_executor /usr/local/bin/
 
 CMD ["mock_executor"]
+
+# CMD ["tail", "-f", "/dev/null"]

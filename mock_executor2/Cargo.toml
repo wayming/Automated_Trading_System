@@ -10,3 +10,4 @@ crate-type = ["cdylib"]
 pyo3 = { version = "0.20", features = ["extension-module"] }
 tokio = { version = "1", features = ["full"] }
 tokio-postgres = "0.7"
+chrono = "0.4"

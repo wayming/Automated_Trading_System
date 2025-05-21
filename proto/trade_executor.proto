@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package trading;
+package trading_executor;
 
 service TradeExecutor {
   rpc ExecuteTrade(TradeRequest) returns (TradeResponse);

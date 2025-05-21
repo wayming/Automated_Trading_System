@@ -2,6 +2,28 @@ use pyo3::prelude::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use tracing::{info, error};
+use tracing_subscriber::fmt::writer::BoxMakeWriter;
+use tracing_subscriber::fmt::time::ChronoLocal;
+use std::fs::OpenOptions;
+use std::path::Path;
+
+fn init_logging() {
+    let log_path = Path::new("output/mock_executor.log");
+    let file = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(log_path)
+        .expect("Failed to open log file");
+
+    let file_writer: BoxMakeWriter = Box::new(file);
+    tracing_subscriber::fmt()
+        .with_writer(file_writer)
+        .with_timer(ChronoLocal::rfc3339())
+        .with_ansi(false) // No color for file logs
+        .init();
+}
+
 #[pyclass]
 #[derive(Default)]
 pub struct MockExecutor {
@@ -26,10 +48,12 @@ impl MockExecutor {
         if self.cash >= cost {
             self.cash -= cost;
             *portfolio.entry(ticker.clone()).or_insert(0.0) += quantity;  // Clone ticker here
-            println!("买入 {} 数量 {} @ ${}", ticker, quantity, price); // Now ticker is still available
+            info!("买入 {} 数量 {} @ ${}", ticker, quantity, price); // Now ticker is still available
         } else {
-            println!("资金不足，无法买入！");
+            error!("资金不足，无法买入！");
         }
+
+        self.show_portfolio();
         Ok(())
     }
     
@@ -40,13 +64,15 @@ impl MockExecutor {
             if *qty >= quantity {
                 *qty -= quantity;
                 self.cash += price * quantity; // Now allowed because we have &mut self
-                println!("卖出 {} 数量 {} @ ${}", ticker, quantity, price);
+                info!("卖出 {} 数量 {} @ ${}", ticker, quantity, price);
             } else {
-                println!("持仓不足，无法卖出！");
+                error!("持仓不足，无法卖出！");
             }
         } else {
-            println!("股票 {} 不在持仓中！", ticker);
+            error!("股票 {} 不在持仓中！", ticker);
         }
+
+        self.show_portfolio();
         Ok(())
     }
 
@@ -58,6 +84,16 @@ impl MockExecutor {
     // 获取持仓情况
     fn get_portfolio(&self) -> HashMap<String, f64> {
         self.portfolio.lock().unwrap().clone()
+    }
+
+    // Dump portfolio
+    fn show_portfolio(&self) {
+        let port_map = self.get_portfolio();
+        info!("Cash balance: {:.2}", *cash);
+        info!("Portfolio:");
+        for (sym, qty) in &port_map {
+            info!("  {}: {:.2}", sym, qty);
+        }
     }
 }
 

@@ -2,10 +2,10 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-import trade_executor_pb2 as trade__executor__pb2
+import stock_hub_pb2 as stock__hub__pb2
 
 
-class TradeExecutorStub(object):
+class StockQuoteStub(object):
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -14,42 +14,42 @@ class TradeExecutorStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.ExecuteTrade = channel.unary_unary(
-                '/trading_executor.TradeExecutor/ExecuteTrade',
-                request_serializer=trade__executor__pb2.TradeRequest.SerializeToString,
-                response_deserializer=trade__executor__pb2.TradeResponse.FromString,
+        self.GetQuote = channel.unary_unary(
+                '/stock_hub.StockQuote/GetQuote',
+                request_serializer=stock__hub__pb2.QuoteRequest.SerializeToString,
+                response_deserializer=stock__hub__pb2.QuoteResponse.FromString,
                 )
 
 
-class TradeExecutorServicer(object):
+class StockQuoteServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def ExecuteTrade(self, request, context):
+    def GetQuote(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
 
-def add_TradeExecutorServicer_to_server(servicer, server):
+def add_StockQuoteServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'ExecuteTrade': grpc.unary_unary_rpc_method_handler(
-                    servicer.ExecuteTrade,
-                    request_deserializer=trade__executor__pb2.TradeRequest.FromString,
-                    response_serializer=trade__executor__pb2.TradeResponse.SerializeToString,
+            'GetQuote': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetQuote,
+                    request_deserializer=stock__hub__pb2.QuoteRequest.FromString,
+                    response_serializer=stock__hub__pb2.QuoteResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'trading_executor.TradeExecutor', rpc_method_handlers)
+            'stock_hub.StockQuote', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
 
 
  # This class is part of an EXPERIMENTAL API.
-class TradeExecutor(object):
+class StockQuote(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def ExecuteTrade(request,
+    def GetQuote(request,
             target,
             options=(),
             channel_credentials=None,
@@ -59,8 +59,8 @@ class TradeExecutor(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/trading_executor.TradeExecutor/ExecuteTrade',
-            trade__executor__pb2.TradeRequest.SerializeToString,
-            trade__executor__pb2.TradeResponse.FromString,
+        return grpc.experimental.unary_unary(request, target, '/stock_hub.StockQuote/GetQuote',
+            stock__hub__pb2.QuoteRequest.SerializeToString,
+            stock__hub__pb2.QuoteResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

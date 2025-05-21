@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14trade_executor.proto\x12\x07trading\"=\n\x0cTradeRequest\x12\x0e\n\x06symbol\x18\x01 \x01(\t\x12\r\n\x05trade\x18\x02 \x01(\t\x12\x0e\n\x06\x61mount\x18\x03 \x01(\x01\"\xa2\x01\n\rTradeResponse\x12\x0f\n\x07message\x18\x01 \x01(\t\x12\x14\n\x0c\x63\x61sh_balance\x18\x02 \x01(\x01\x12\x38\n\tportfolio\x18\x03 \x03(\x0b\x32%.trading.TradeResponse.PortfolioEntry\x1a\x30\n\x0ePortfolioEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01:\x02\x38\x01\x32N\n\rTradeExecutor\x12=\n\x0c\x45xecuteTrade\x12\x15.trading.TradeRequest\x1a\x16.trading.TradeResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14trade_executor.proto\x12\x10trading_executor\"=\n\x0cTradeRequest\x12\x0e\n\x06symbol\x18\x01 \x01(\t\x12\r\n\x05trade\x18\x02 \x01(\t\x12\x0e\n\x06\x61mount\x18\x03 \x01(\x01\"\xab\x01\n\rTradeResponse\x12\x0f\n\x07message\x18\x01 \x01(\t\x12\x14\n\x0c\x63\x61sh_balance\x18\x02 \x01(\x01\x12\x41\n\tportfolio\x18\x03 \x03(\x0b\x32..trading_executor.TradeResponse.PortfolioEntry\x1a\x30\n\x0ePortfolioEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01:\x02\x38\x01\x32`\n\rTradeExecutor\x12O\n\x0c\x45xecuteTrade\x12\x1e.trading_executor.TradeRequest\x1a\x1f.trading_executor.TradeResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -23,12 +23,12 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   DESCRIPTOR._options = None
   _globals['_TRADERESPONSE_PORTFOLIOENTRY']._options = None
   _globals['_TRADERESPONSE_PORTFOLIOENTRY']._serialized_options = b'8\001'
-  _globals['_TRADEREQUEST']._serialized_start=33
-  _globals['_TRADEREQUEST']._serialized_end=94
-  _globals['_TRADERESPONSE']._serialized_start=97
-  _globals['_TRADERESPONSE']._serialized_end=259
-  _globals['_TRADERESPONSE_PORTFOLIOENTRY']._serialized_start=211
-  _globals['_TRADERESPONSE_PORTFOLIOENTRY']._serialized_end=259
-  _globals['_TRADEEXECUTOR']._serialized_start=261
-  _globals['_TRADEEXECUTOR']._serialized_end=339
+  _globals['_TRADEREQUEST']._serialized_start=42
+  _globals['_TRADEREQUEST']._serialized_end=103
+  _globals['_TRADERESPONSE']._serialized_start=106
+  _globals['_TRADERESPONSE']._serialized_end=277
+  _globals['_TRADERESPONSE_PORTFOLIOENTRY']._serialized_start=229
+  _globals['_TRADERESPONSE_PORTFOLIOENTRY']._serialized_end=277
+  _globals['_TRADEEXECUTOR']._serialized_start=279
+  _globals['_TRADEEXECUTOR']._serialized_end=375
 # @@protoc_insertion_point(module_scope)
