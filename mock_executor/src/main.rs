@@ -42,6 +42,7 @@ impl TradeExecutor for TradingEngine {
         let mut quote_client = StockQuoteClient::connect("http://stock_hub:50052")
             .await
             .map_err(|e| Status::internal(format!("Failed to connect to quote service: {}", e)))?;
+        
         let quote_response = quote_client
             .get_quote(Request::new(QuoteRequest {
                 symbol: symbol.clone(),
@@ -49,6 +50,7 @@ impl TradeExecutor for TradingEngine {
             .await
             .map_err(|e| Status::internal(format!("Quote error: {}", e)))?
             .into_inner();
+        
         let price = quote_response.price;
 
         match trade.as_str() {
@@ -90,7 +92,9 @@ impl TradeExecutor for TradingEngine {
             .map(|entry| (entry.key().clone(), *entry.value()))
             .collect::<HashMap<_, _>>();
 
+        println!("Cash balance: {:.2}", cash);
         self.show_portfolio().await;
+
         Ok(Response::new(TradeResponse {
             message: "Trade executed".to_string(),
             cash_balance: *cash,
@@ -109,8 +113,6 @@ impl TradingEngine {
     }
 
     pub async fn show_portfolio(&self) {
-        let cash = self.cash.lock().await;
-        println!("Cash balance: {:.2}", *cash);
         println!("Portfolio:");
         for entry in self.portfolio.iter() {
             println!("  {}: {:.2}", entry.key(), entry.value());

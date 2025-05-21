@@ -1,8 +1,8 @@
 import re
 import json
 from datetime import datetime
-from typing import Optional
-
+from typing   import Optional
+from grpc     import RpcError 
 class TradePolicy:
     def __init__(self, executor, logger):
         self.executor = executor
@@ -26,7 +26,7 @@ class TradePolicy:
                     return
 
                 score = int(re.search(r'[+-]?\d+', score_str).group())
-                if score > 0:
+                if score > 50:
                     self._execute_buy(ticker, score, analyse_result)
                 else:
                     self.logger.info(f"Score is not a buy signal ({score})")
@@ -36,6 +36,7 @@ class TradePolicy:
                 self.logger.exception(e)
         else:
             self.logger.info("No short_term analysis available")
+        self.logger.info("Evaluation done")
 
     def _execute_buy(self, ticker: str, score: int, analyse_result: dict):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -44,7 +45,12 @@ class TradePolicy:
 
         # Fixed quantity for now
         quantity = 10.0
-        self.executor.execute_trade(ticker, "buy", quantity)
+        try:
+            # Attempt to execute the trade
+            self.executor.execute_trade(ticker, "buy", quantity)
+        except RpcError as e:
+            # Handle any gRPC error (including _InactiveRpcError)
+            self.logger.error(f"Error during trade execution for {ticker}: {e.details()} - {e.debug_error_string}")
 
         # Log portfolio and cash after trade
         if hasattr(self.executor, "get_cash") and hasattr(self.executor, "get_portfolio"):

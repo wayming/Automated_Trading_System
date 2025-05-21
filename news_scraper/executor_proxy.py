@@ -5,7 +5,8 @@ import os
 import sys
 
 from proto.trade_executor_pb2_grpc import TradeExecutorStub
-from proto.trade_executor_pb2 import TradeRequest
+from proto.trade_executor_pb2      import TradeRequest
+from grpc                          import RpcError 
 
 class TradeExecutor(ABC):
     @abstractmethod
@@ -23,6 +24,14 @@ class MockTradeExecutorProxy(TradeExecutor):
         self.stub = TradeExecutorStub(self.channel)
 
     def execute_trade(self, symbol: str, trade: str, amount: float) -> Tuple[str, float, Dict[str, float]]:
-        request = TradeRequest(symbol=symbol, trade=trade, amount=amount)
-        response = self.stub.ExecuteTrade(request)
-        return response.message, response.cash_balance, dict(response.portfolio)
+        try:
+            request = TradeRequest(symbol=symbol, trade=trade, amount=amount)
+            print("execute_trade begin")
+            response = self.stub.ExecuteTrade(request)
+            print("execute_trade done")
+
+            return response.message, response.cash_balance, dict(response.portfolio)
+        except RpcError as e:
+            # Handle the error, e.g., log it, retry, or return a default response
+            print(f"gRPC call failed: {e.details()}")
+            return "Trade failed", 0.0, {}

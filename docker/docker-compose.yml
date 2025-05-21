@@ -54,6 +54,8 @@ services:
       - "5672:5672"
       - "15672:15672"  # Management UI
     restart: always
+    environment:
+      - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit heartbeat 600
     networks:
       - scraper-network
     healthcheck:

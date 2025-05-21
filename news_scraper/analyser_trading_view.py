@@ -7,7 +7,7 @@ import requests
 import pika
 import logging
 import signal
-
+from functools          import partial
 from bs4                import BeautifulSoup
 from requests.adapters  import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -104,16 +104,37 @@ def main():
     executor = MockTradeExecutorProxy()
     trade_policy = TradePolicy(executor=executor, logger=logger)
 
+    def on_message(ch, method, properties, body, analyser, trade_policy):
+        logger.info("[Analyser_Trading_View] new message received.")
+        result = analyser.analyse(body.decode())
+        logger.info(json.dumps(result, indent=2, ensure_ascii=False))
+        trade_policy.evaluate(result)
+        logger.info("[Analyser_Trading_View] acknowledge begin")
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+        logger.info("[Analyser_Trading_View] acknowledge done")
+
+    # Register signal handlers to stop consuming
+    def handle_signal(signum, frame):
+        logger.info(f"Received signal {signum}. Stopping consumption.")
+        channel.stop_consuming()
+    signal.signal(signal.SIGINT, handle_signal)
+    signal.signal(signal.SIGTERM, handle_signal)
+
     logger.info("[Analyser_Trading_View] Waiting for messages...")
-    while True:
-        method_frame, properties, body = channel.basic_get(QUEUE_TV_ARTICLES, auto_ack=True)
-        if method_frame:
-            result = analyser.analyse(body.decode())
-            logger.info(json.dumps(result, indent=2, ensure_ascii=False))
-            trade_policy.evaluate(result)
-        else:
-            time.sleep(1)  # No message, wait briefly
-        connection.process_data_events()  # Maintain heartbeat
+    channel.basic_consume(
+        queue=QUEUE_TV_ARTICLES,
+        on_message_callback=partial(on_message, analyser=analyser, trade_policy=trade_policy)
+    )
+
+    try:
+        channel.start_consuming()
+    except Exception as e:
+        logger.exception("Error during consuming")
+    finally:
+        logger.info("Closing connection...")
+        channel.close()
+        connection.close()
+        logger.info("Shutdown complete.")
 
 
 if __name__ == "__main__":
