@@ -17,10 +17,14 @@ def new_logger(file_path: str) -> logging.Logger:
 
 
 def new_mq_conn(queue: str) -> pika.adapters.blocking_connection.BlockingChannel:
-    connection = pika.BlockingConnection(pika.ConnectionParameters(
-        host='rabbitmq',
-        heartbeat=600
-    ))
+    connection = pika.BlockingConnection(
+        pika.ConnectionParameters(
+            host='rabbitmq',
+            heartbeat=600,  # 10 minutes
+            blocked_connection_timeout=300,
+            socket_timeout=605  # Slightly > heartbeat
+        )
+    )
     channel = connection.channel()
     channel.queue_declare(queue=queue)
     return connection, channel

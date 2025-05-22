@@ -17,6 +17,7 @@ from datetime           import datetime
 from .executor_proxy    import TradeExecutor, MockTradeExecutorProxy
 from common             import new_logger, new_mq_conn
 from trade_policy       import TradePolicy
+from openai             import OpenAI
 
 # Set up logging
 QUEUE_TV_ARTICLES = "tv_articles"
@@ -33,6 +34,7 @@ class TradingViewAnalyser(NewsAnalyser):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
+        self.ds_client = OpenAI(api_key=self.api_key, base_url="https://api.deepseek.com")
 
     def _extract_article(self, html_text):
         soup = BeautifulSoup(html_text, 'html.parser')
@@ -46,18 +48,15 @@ class TradingViewAnalyser(NewsAnalyser):
         }
 
     def _send_to_llm(self, prompt_text):
-        payload = {
-            "model": "deepseek-chat",
-            "messages": [{"role": "user", "content": prompt_text}],
-            "temperature": 0.7
-        }
-
-        session = requests.Session()
-        session.mount("https://", HTTPAdapter(max_retries=Retry(total=3, backoff_factor=1)))
-
-        resp = session.post(self.api_url, headers=self.headers, json=payload)
-        resp.raise_for_status()
-        return resp.json()['choices'][0]['message']['content']
+        response = self.ds_client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant"},
+                {"role": "user", "content": prompt_text},
+            ],
+            stream=False
+        )
+        return response.choices[0].message.content
 
     def _extract_structured_response(self, response_text):
         pattern = r'^-{3,}\s*\n(.*?)\n-{3,}$'
@@ -105,13 +104,26 @@ def main():
     trade_policy = TradePolicy(executor=executor, logger=logger)
 
     def on_message(ch, method, properties, body, analyser, trade_policy):
-        logger.info("[Analyser_Trading_View] new message received.")
-        result = analyser.analyse(body.decode())
-        logger.info(json.dumps(result, indent=2, ensure_ascii=False))
-        trade_policy.evaluate(result)
-        logger.info("[Analyser_Trading_View] acknowledge begin")
-        ch.basic_ack(delivery_tag=method.delivery_tag)
-        logger.info("[Analyser_Trading_View] acknowledge done")
+        try:
+            logger.info("[Analyser_Trading_View] new message received.")
+            bodyText = body.decode()
+            
+            # Process FIRST
+            logger.info("[Analyser_Trading_View] analyse")
+            result = analyser.analyse(bodyText)
+            logger.info(json.dumps(result, indent=2, ensure_ascii=False))
+            
+            logger.info("[Analyser_Trading_View] trade")
+            trade_policy.evaluate(result)
+            
+            # Ack LAST (only if processing succeeded)
+            logger.info("[Analyser_Trading_View] acknowledge")
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+            
+        except Exception as e:
+            logger.error(f"Error processing message: {e}")
+            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+
 
     # Register signal handlers to stop consuming
     def handle_signal(signum, frame):

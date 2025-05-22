@@ -13,7 +13,9 @@ class TradePolicy:
             self.logger.info("No trade operation for empty analysis results")
             return
 
-        if "analysis" in analyse_result and "short_term" in analyse_result["analysis"]:
+        if ("analysis" in analyse_result and
+            analyse_result["analysis"] is not None and
+            "short_term" in analyse_result["analysis"]):
             try:
                 ticker = analyse_result.get("stock_code", "Unknown")
                 if not ticker:

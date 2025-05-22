@@ -32,7 +32,8 @@ class InvestingAnalyser(NewsAnalyser):
     def __init__(self, api_key: str, prompt_path: str):
         self.api_key = api_key
         self.prompt_path = prompt_path
-        self.api_url = "https://api.deepseek.com/v1/chat/completions"
+        # self.api_url = "https://api.deepseek.com/v1/chat/completions"
+        self.api_url = "https://api.deepseek.com/v1/reasoner"
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
