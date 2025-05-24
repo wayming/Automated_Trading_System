@@ -35,7 +35,7 @@ class TradingViewScraper(NewsScraper):
 
         if queue_conn != None:
             self.queue_channel = queue_conn.channel()
-            self.queue_channel.queue_declare(queue=queue_name)
+            self.queue_channel.queue_declare(queue=queue_name, durable=True)
 
     def _start_driver(self):
         options = uc.ChromeOptions()

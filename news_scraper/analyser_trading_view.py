@@ -2,9 +2,9 @@ import os
 import json
 import re
 import time
-
+import asyncio
 import requests
-import pika
+import aio_pika
 import logging
 import signal
 from functools          import partial
@@ -90,64 +90,51 @@ class TradingViewAnalyser(NewsAnalyser):
 
         return result
 
-def main():
+async def handle_message(message: aio_pika.IncomingMessage, analyser, trade_policy):
+    async with message.process(ignore_processed=True):
+        try:
+            logger.info("[Analyser_Trading_View] new message received.")
+            body_text = message.body.decode()
+
+            logger.info("[Analyser_Trading_View] analyse")
+            result = analyser.analyse(body_text)
+            logger.info(json.dumps(result, indent=2, ensure_ascii=False))
+
+            logger.info("[Analyser_Trading_View] trade")
+            trade_policy.evaluate(result)
+
+        except Exception as e:
+            logger.error(f"Error processing message: {e}")
+            await message.reject(requeue=False)
+
+async def main():
     logger.info("[Analyser_Trading_View] Connecting to RabbitMQ...")
-    connection, channel = new_mq_conn(QUEUE_TV_ARTICLES)
-    
+    connection, queue = await new_mq_conn(QUEUE_TV_ARTICLES)
+
     this_dir = Path(__file__).parent
     analyser = TradingViewAnalyser(
         api_key=os.getenv("DEEPSEEK_API_KEY"),
-        prompt_path=this_dir/"prompt.txt",
+        prompt_path=this_dir / "prompt.txt",
     )
-    
     executor = MockTradeExecutorProxy()
     trade_policy = TradePolicy(executor=executor, logger=logger)
 
-    def on_message(ch, method, properties, body, analyser, trade_policy):
-        try:
-            logger.info("[Analyser_Trading_View] new message received.")
-            bodyText = body.decode()
-            
-            # Process FIRST
-            logger.info("[Analyser_Trading_View] analyse")
-            result = analyser.analyse(bodyText)
-            logger.info(json.dumps(result, indent=2, ensure_ascii=False))
-            
-            logger.info("[Analyser_Trading_View] trade")
-            trade_policy.evaluate(result)
-            
-            # Ack LAST (only if processing succeeded)
-            logger.info("[Analyser_Trading_View] acknowledge")
-            ch.basic_ack(delivery_tag=method.delivery_tag)
-            
-        except Exception as e:
-            logger.error(f"Error processing message: {e}")
-            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+    logger.info("Setting up consumer...")
+    await queue.consume(partial(handle_message, analyser=analyser, trade_policy=trade_policy))
 
+    stop_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
 
-    # Register signal handlers to stop consuming
-    def handle_signal(signum, frame):
-        logger.info(f"Received signal {signum}. Stopping consumption.")
-        channel.stop_consuming()
-    signal.signal(signal.SIGINT, handle_signal)
-    signal.signal(signal.SIGTERM, handle_signal)
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, stop_event.set)
 
-    logger.info("[Analyser_Trading_View] Waiting for messages...")
-    channel.basic_consume(
-        queue=QUEUE_TV_ARTICLES,
-        on_message_callback=partial(on_message, analyser=analyser, trade_policy=trade_policy)
-    )
+    logger.info("Consumer started, waiting for messages...")
+    await stop_event.wait()
 
-    try:
-        channel.start_consuming()
-    except Exception as e:
-        logger.exception("Error during consuming")
-    finally:
-        logger.info("Closing connection...")
-        channel.close()
-        connection.close()
-        logger.info("Shutdown complete.")
+    logger.info("Shutting down...")
+    await connection.close()
+    logger.info("Shutdown complete.")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

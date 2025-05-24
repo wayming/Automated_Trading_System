@@ -2,7 +2,8 @@
 
 import logging
 import os
-import pika
+import aio_pika
+from typing import Tuple
 
 def new_logger(file_path: str) -> logging.Logger:
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -16,15 +17,12 @@ def new_logger(file_path: str) -> logging.Logger:
     return logging.getLogger(__name__)
 
 
-def new_mq_conn(queue: str) -> pika.adapters.blocking_connection.BlockingChannel:
-    connection = pika.BlockingConnection(
-        pika.ConnectionParameters(
-            host='rabbitmq',
-            heartbeat=600,  # 10 minutes
-            blocked_connection_timeout=300,
-            socket_timeout=605  # Slightly > heartbeat
-        )
+
+async def new_mq_conn(queue_name: str) -> Tuple[aio_pika.RobustConnection, aio_pika.Queue]:
+    connection = await aio_pika.connect_robust(
+        host="rabbitmq",
+        heartbeat=600,
     )
-    channel = connection.channel()
-    channel.queue_declare(queue=queue)
-    return connection, channel
+    channel = await connection.channel()
+    queue = await channel.declare_queue(queue_name, durable=True)
+    return connection, queue
