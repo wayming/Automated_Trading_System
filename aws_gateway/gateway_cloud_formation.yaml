@@ -1,0 +1,229 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: WebSocket Chat System with DynamoDB connection tracking
+
+Parameters:
+  StageName:
+    Type: String
+    Default: prod
+    Description: Deployment stage (e.g. prod, dev)
+
+Resources:
+
+  WebSocketConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: WebSocketConnections
+      AttributeDefinitions:
+        - AttributeName: connectionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: connectionId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  WebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: WebSocketChatApi
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: $request.body.action
+
+  WebSocketConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $connect
+      AuthorizationType: NONE
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref WebSocketConnectIntegration
+
+  WebSocketDisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $disconnect
+      AuthorizationType: NONE
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref WebSocketDisconnectIntegration
+
+  WebSocketSendMessageRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: sendmessage
+      AuthorizationType: NONE
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref WebSocketSendMessageIntegration
+
+  WebSocketConnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub
+        - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${FunctionArn}/invocations
+        - { Region: !Ref 'AWS::Region', FunctionArn: !GetAtt HandleConnectFunction.Arn }
+      PayloadFormatVersion: '2.0'
+
+  WebSocketDisconnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub
+        - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${FunctionArn}/invocations
+        - { Region: !Ref 'AWS::Region', FunctionArn: !GetAtt HandleDisconnectFunction.Arn }
+      PayloadFormatVersion: '2.0'
+
+  WebSocketSendMessageIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub
+        - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${FunctionArn}/invocations
+        - { Region: !Ref 'AWS::Region', FunctionArn: !GetAtt HandleSendMessageFunction.Arn }
+      PayloadFormatVersion: '2.0'
+
+  HandleConnectFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: HandleConnectFunction
+      Runtime: python3.9
+      Handler: handleConnect.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref WebSocketConnectionsTable
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+
+          dynamodb = boto3.resource('dynamodb')
+          table = dynamodb.Table(os.environ['TABLE_NAME'])
+
+          def lambda_handler(event, context):
+              connectionId = event['requestContext']['connectionId']
+              table.put_item(Item={'connectionId': connectionId})
+              return {'statusCode': 200}
+
+  HandleDisconnectFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: HandleDisconnectFunction
+      Runtime: python3.9
+      Handler: handleDisconnect.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref WebSocketConnectionsTable
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+
+          dynamodb = boto3.resource('dynamodb')
+          table = dynamodb.Table(os.environ['TABLE_NAME'])
+
+          def lambda_handler(event, context):
+              connectionId = event['requestContext']['connectionId']
+              table.delete_item(Key={'connectionId': connectionId})
+              return {'statusCode': 200}
+
+  HandleSendMessageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: HandleSendMessageFunction
+      Runtime: python3.9
+      Handler: handleSendMessage.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref WebSocketConnectionsTable
+          API_GATEWAY_ID: !Ref WebSocketApi
+          AWS_REGION: !Ref 'AWS::Region'
+          STAGE: !Ref StageName
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          import json
+
+          dynamodb = boto3.resource('dynamodb')
+          table = dynamodb.Table(os.environ['TABLE_NAME'])
+
+          apigw_client = boto3.client('apigatewaymanagementapi',
+                                     endpoint_url=f"https://{os.environ['API_GATEWAY_ID']}.execute-api.{os.environ['AWS_REGION']}.amazonaws.com/{os.environ['STAGE']}")
+
+          def lambda_handler(event, context):
+              body = json.loads(event['body'])
+              message = body.get('message', '')
+
+              connections = table.scan(ProjectionExpression='connectionId')['Items']
+
+              for connection in connections:
+                  connectionId = connection['connectionId']
+                  try:
+                      apigw_client.post_to_connection(ConnectionId=connectionId, Data=message.encode('utf-8'))
+                  except apigw_client.exceptions.GoneException:
+                      table.delete_item(Key={'connectionId': connectionId})
+
+              return {'statusCode': 200}
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: WebSocketLambdaExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: WebSocketLambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                Resource: !GetAtt WebSocketConnectionsTable.Arn
+              - Effect: Allow
+                Action:
+                  - execute-api:ManageConnections
+                Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/POST/@connections/*
+
+  Deployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+      - WebSocketConnectRoute
+      - WebSocketDisconnectRoute
+      - WebSocketSendMessageRoute
+    Properties:
+      ApiId: !Ref WebSocketApi
+
+  Stage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref WebSocketApi
+      DeploymentId: !Ref Deployment
+      StageName: !Ref StageName
+      AutoDeploy: true
+
+Outputs:
+  WebSocketApiEndpoint:
+    Description: "WebSocket API Endpoint"
+    Value: !Sub "wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
