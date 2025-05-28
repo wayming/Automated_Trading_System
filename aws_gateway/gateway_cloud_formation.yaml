@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: WebSocket Chat System with DynamoDB connection tracking
+Description: WebSocket Chat System with DynamoDB connection tracking and HTTP push API
 
 Parameters:
   StageName:
@@ -69,7 +69,7 @@ Resources:
       IntegrationUri: !Sub
         - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${FunctionArn}/invocations
         - { Region: !Ref 'AWS::Region', FunctionArn: !GetAtt HandleConnectFunction.Arn }
-      PayloadFormatVersion: '2.0'
+      PayloadFormatVersion: '1.0'
 
   WebSocketDisconnectIntegration:
     Type: AWS::ApiGatewayV2::Integration
@@ -79,7 +79,7 @@ Resources:
       IntegrationUri: !Sub
         - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${FunctionArn}/invocations
         - { Region: !Ref 'AWS::Region', FunctionArn: !GetAtt HandleDisconnectFunction.Arn }
-      PayloadFormatVersion: '2.0'
+      PayloadFormatVersion: '1.0'
 
   WebSocketSendMessageIntegration:
     Type: AWS::ApiGatewayV2::Integration
@@ -89,14 +89,14 @@ Resources:
       IntegrationUri: !Sub
         - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${FunctionArn}/invocations
         - { Region: !Ref 'AWS::Region', FunctionArn: !GetAtt HandleSendMessageFunction.Arn }
-      PayloadFormatVersion: '2.0'
+      PayloadFormatVersion: '1.0'
 
   HandleConnectFunction:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: HandleConnectFunction
       Runtime: python3.9
-      Handler: handleConnect.lambda_handler
+      Handler: index.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
@@ -119,7 +119,7 @@ Resources:
     Properties:
       FunctionName: HandleDisconnectFunction
       Runtime: python3.9
-      Handler: handleDisconnect.lambda_handler
+      Handler: index.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
@@ -142,13 +142,13 @@ Resources:
     Properties:
       FunctionName: HandleSendMessageFunction
       Runtime: python3.9
-      Handler: handleSendMessage.lambda_handler
+      Handler: index.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
           TABLE_NAME: !Ref WebSocketConnectionsTable
           API_GATEWAY_ID: !Ref WebSocketApi
-          AWS_REGION: !Ref 'AWS::Region'
+          CURR_AWS_REGION: !Ref 'AWS::Region'
           STAGE: !Ref StageName
       Code:
         ZipFile: |
@@ -160,11 +160,15 @@ Resources:
           table = dynamodb.Table(os.environ['TABLE_NAME'])
 
           apigw_client = boto3.client('apigatewaymanagementapi',
-                                     endpoint_url=f"https://{os.environ['API_GATEWAY_ID']}.execute-api.{os.environ['AWS_REGION']}.amazonaws.com/{os.environ['STAGE']}")
+                                     endpoint_url=f"https://{os.environ['API_GATEWAY_ID']}.execute-api.{os.environ['CURR_AWS_REGION']}.amazonaws.com/{os.environ['STAGE']}")
 
           def lambda_handler(event, context):
-              body = json.loads(event['body'])
-              message = body.get('message', '')
+              raw_body = event.get('body', '')
+              try:
+                  body_json = json.loads(raw_body)
+                  message = json.dumps(body_json, indent=2)
+              except Exception:
+                  message = raw_body
 
               connections = table.scan(ProjectionExpression='connectionId')['Items']
 
@@ -190,6 +194,8 @@ Resources:
                 - lambda.amazonaws.com
             Action:
               - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
         - PolicyName: WebSocketLambdaPolicy
           PolicyDocument:
@@ -223,7 +229,51 @@ Resources:
       StageName: !Ref StageName
       AutoDeploy: true
 
+  # 新增 HTTP API 部分，用于本地 POST 推送消息
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: HttpPushApi
+      ProtocolType: HTTP
+
+  HttpIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HandleSendMessageFunction.Arn}/invocations
+      PayloadFormatVersion: '2.0'
+
+  HttpRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /push"
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref HttpIntegration
+
+  HttpStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: prod
+      AutoDeploy: true
+
+  LambdaInvokePermissionForHttp:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref HandleSendMessageFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/POST/push
+
 Outputs:
   WebSocketApiEndpoint:
     Description: "WebSocket API Endpoint"
     Value: !Sub "wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
+
+  HttpApiEndpoint:
+    Description: "HTTP Push API Endpoint"
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/prod/push"

@@ -1,5 +1,8 @@
 import requests
+import json
 
-url = "https://your-api-id.execute-api.region.amazonaws.com/prod/message"
-payload = {"message": "Hello from local"}
-requests.post(url, json=payload)
+data = {"from": "local", "value": "hello"}
+resp = requests.post("https://2t84a88xak.execute-api.ap-southeast-2.amazonaws.com/prod/push",
+                     data=json.dumps(data),
+                     headers={"Content-Type": "application/json"})
+print(resp.status_code, resp.text)
