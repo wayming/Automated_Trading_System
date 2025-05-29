@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: WebSocket Chat System with DynamoDB connection tracking and HTTP push API
+Description: WebSocket Chat System with CloudWatch logging and DynamoDB connection tracking
 
 Parameters:
   StageName:
@@ -66,9 +66,7 @@ Resources:
     Properties:
       ApiId: !Ref WebSocketApi
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub
-        - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${FunctionArn}/invocations
-        - { Region: !Ref 'AWS::Region', FunctionArn: !GetAtt HandleConnectFunction.Arn }
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HandleConnectFunction.Arn}/invocations
       PayloadFormatVersion: '1.0'
 
   WebSocketDisconnectIntegration:
@@ -76,9 +74,7 @@ Resources:
     Properties:
       ApiId: !Ref WebSocketApi
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub
-        - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${FunctionArn}/invocations
-        - { Region: !Ref 'AWS::Region', FunctionArn: !GetAtt HandleDisconnectFunction.Arn }
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HandleDisconnectFunction.Arn}/invocations
       PayloadFormatVersion: '1.0'
 
   WebSocketSendMessageIntegration:
@@ -86,9 +82,7 @@ Resources:
     Properties:
       ApiId: !Ref WebSocketApi
       IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub
-        - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${FunctionArn}/invocations
-        - { Region: !Ref 'AWS::Region', FunctionArn: !GetAtt HandleSendMessageFunction.Arn }
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HandleSendMessageFunction.Arn}/invocations
       PayloadFormatVersion: '1.0'
 
   HandleConnectFunction:
@@ -105,10 +99,8 @@ Resources:
         ZipFile: |
           import boto3
           import os
-
           dynamodb = boto3.resource('dynamodb')
           table = dynamodb.Table(os.environ['TABLE_NAME'])
-
           def lambda_handler(event, context):
               connectionId = event['requestContext']['connectionId']
               table.put_item(Item={'connectionId': connectionId})
@@ -128,10 +120,8 @@ Resources:
         ZipFile: |
           import boto3
           import os
-
           dynamodb = boto3.resource('dynamodb')
           table = dynamodb.Table(os.environ['TABLE_NAME'])
-
           def lambda_handler(event, context):
               connectionId = event['requestContext']['connectionId']
               table.delete_item(Key={'connectionId': connectionId})
@@ -155,13 +145,10 @@ Resources:
           import boto3
           import os
           import json
-
           dynamodb = boto3.resource('dynamodb')
           table = dynamodb.Table(os.environ['TABLE_NAME'])
-
           apigw_client = boto3.client('apigatewaymanagementapi',
-                                     endpoint_url=f"https://{os.environ['API_GATEWAY_ID']}.execute-api.{os.environ['CURR_AWS_REGION']}.amazonaws.com/{os.environ['STAGE']}")
-
+              endpoint_url=f"https://{os.environ['API_GATEWAY_ID']}.execute-api.{os.environ['CURR_AWS_REGION']}.amazonaws.com/{os.environ['STAGE']}")
           def lambda_handler(event, context):
               raw_body = event.get('body', '')
               try:
@@ -169,16 +156,13 @@ Resources:
                   message = json.dumps(body_json, indent=2)
               except Exception:
                   message = raw_body
-
               connections = table.scan(ProjectionExpression='connectionId')['Items']
-
               for connection in connections:
                   connectionId = connection['connectionId']
                   try:
                       apigw_client.post_to_connection(ConnectionId=connectionId, Data=message.encode('utf-8'))
                   except apigw_client.exceptions.GoneException:
                       table.delete_item(Key={'connectionId': connectionId})
-
               return {'statusCode': 200}
 
   LambdaExecutionRole:
@@ -190,10 +174,8 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
+              Service: [lambda.amazonaws.com]
+            Action: [sts:AssumeRole]
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
@@ -202,15 +184,57 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action:
-                  - dynamodb:PutItem
-                  - dynamodb:DeleteItem
-                  - dynamodb:Scan
+                Action: [dynamodb:PutItem, dynamodb:DeleteItem, dynamodb:Scan]
                 Resource: !GetAtt WebSocketConnectionsTable.Arn
               - Effect: Allow
-                Action:
-                  - execute-api:ManageConnections
+                Action: [execute-api:ManageConnections]
                 Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/POST/@connections/*
+
+  # Allow HTTP API invokes lambda
+  HttpApiInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref HandleSendMessageFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/POST/send
+
+
+  # Log groups with DeletionPolicy: Delete
+  ConnectFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: /aws/lambda/HandleConnectFunction
+      RetentionInDays: 14
+
+  DisconnectFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: /aws/lambda/HandleDisconnectFunction
+      RetentionInDays: 14
+
+  SendMessageFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: /aws/lambda/HandleSendMessageFunction
+      RetentionInDays: 14
+
+  WebSocketApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/${WebSocketApi}
+      RetentionInDays: 14
+
+  HttpApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/${HttpApi}
+      RetentionInDays: 14
 
   Deployment:
     Type: AWS::ApiGatewayV2::Deployment
@@ -221,6 +245,7 @@ Resources:
     Properties:
       ApiId: !Ref WebSocketApi
 
+  # For WebSocket API Stage
   Stage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
@@ -228,8 +253,10 @@ Resources:
       DeploymentId: !Ref Deployment
       StageName: !Ref StageName
       AutoDeploy: true
+      AccessLogSettings:
+        DestinationArn: !GetAtt WebSocketApiLogGroup.Arn
+        Format: '{"requestId":"$context.requestId","routeKey":"$context.routeKey","status":"$context.status"}'
 
-  # 新增 HTTP API 部分，用于本地 POST 推送消息
   HttpApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
@@ -248,32 +275,28 @@ Resources:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "POST /push"
+      RouteKey: "POST /send"
       Target: !Join
         - /
         - - integrations
           - !Ref HttpIntegration
 
-  HttpStage:
+  # For HTTP API Stage (add if not present, or update existing)
+  HttpApiStage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
       ApiId: !Ref HttpApi
-      StageName: prod
+      StageName: !Ref StageName
       AutoDeploy: true
-
-  LambdaInvokePermissionForHttp:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref HandleSendMessageFunction
-      Action: lambda:InvokeFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/POST/push
+      AccessLogSettings:
+        DestinationArn: !GetAtt HttpApiLogGroup.Arn
+        Format: '{"requestId":"$context.requestId","routeKey":"$context.routeKey","status":"$context.status"}'
 
 Outputs:
+  HttpApiEndpoint:
+    Description: "HTTP API Endpoint URL"
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/send"
   WebSocketApiEndpoint:
-    Description: "WebSocket API Endpoint"
+    Description: "WebSocket API Endpoint URL"
     Value: !Sub "wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
 
-  HttpApiEndpoint:
-    Description: "HTTP Push API Endpoint"
-    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/prod/push"

@@ -1,8 +1,9 @@
 import requests
 import json
-
+import os
+HTTP_API_ENDPOINT=os.getenv("HTTP_API_ENDPOINT")
 data = {"from": "local", "value": "hello"}
-resp = requests.post("https://2t84a88xak.execute-api.ap-southeast-2.amazonaws.com/prod/push",
+resp = requests.post(HTTP_API_ENDPOINT,
                      data=json.dumps(data),
                      headers={"Content-Type": "application/json"})
 print(resp.status_code, resp.text)

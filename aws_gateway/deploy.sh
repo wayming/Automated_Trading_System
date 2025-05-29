@@ -14,6 +14,44 @@ if [ -z "$REGION" ]; then
   exit 1
 fi
 
+ROLE_NAME="ApiGatewayCloudWatchLogsRole"
+
+# 获取 account ID
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+# 检查 CloudWatch 日志角色是否存在
+ROLE_EXISTS=$(aws iam get-role --role-name "$ROLE_NAME" --query 'Role.Arn' --output text 2>/dev/null || echo "none")
+
+if [ "$ROLE_EXISTS" = "none" ]; then
+  echo "🔧 创建 CloudWatch 日志角色: $ROLE_NAME"
+
+  aws iam create-role --role-name "$ROLE_NAME" \
+    --assume-role-policy-document '{
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Principal": { "Service": "apigateway.amazonaws.com" },
+        "Action": "sts:AssumeRole"
+      }]
+    }'
+
+  aws iam attach-role-policy \
+    --role-name "$ROLE_NAME" \
+    --policy-arn arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+
+  echo "⏳ 等待 IAM 角色生效..."
+  sleep 10
+fi
+
+# 获取 Role ARN
+ROLE_ARN=$(aws iam get-role --role-name "$ROLE_NAME" --query 'Role.Arn' --output text)
+
+# 设置 API Gateway 账户日志角色
+echo "🔧 设置 API Gateway CloudWatch 日志角色..."
+aws apigateway update-account \
+  --patch-operations op=replace,path=/cloudwatchRoleArn,value="$ROLE_ARN"
+
+
 STACK_NAME="WebSocketChatStack"
 TEMPLATE_FILE="gateway_cloud_formation.yaml"
 STAGE_NAME="prod"
@@ -90,3 +128,4 @@ HTTP_API_ENDPOINT=$(aws cloudformation describe-stacks \
   --query "Stacks[0].Outputs[?OutputKey=='HttpApiEndpoint'].OutputValue" \
   --output text)
 echo "HTTP Push API: $HTTP_API_ENDPOINT"
+export HTTP_API_ENDPOINT=$HTTP_API_ENDPOINT
