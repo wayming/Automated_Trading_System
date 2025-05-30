@@ -56,27 +56,27 @@ STACK_NAME="WebSocketChatStack"
 TEMPLATE_FILE="gateway_cloud_formation.yaml"
 STAGE_NAME="prod"
 
-# echo "Checking if stack $STACK_NAME exists..."
+echo "Checking if stack $STACK_NAME exists..."
 
-# if aws cloudformation describe-stacks --stack-name $STACK_NAME >/dev/null 2>&1; then
-#   echo "Stack $STACK_NAME exists, deleting..."
-#   aws cloudformation delete-stack --stack-name $STACK_NAME
-#   echo "Waiting for stack deletion to complete..."
-#   aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME
-#   echo "Previous stack deleted."
-# else
-#   echo "Stack $STACK_NAME does not exist, no deletion needed."
-# fi
+if aws cloudformation describe-stacks --stack-name $STACK_NAME >/dev/null 2>&1; then
+  echo "Stack $STACK_NAME exists, deleting..."
+  aws cloudformation delete-stack --stack-name $STACK_NAME
+  echo "Waiting for stack deletion to complete..."
+  aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME
+  echo "Previous stack deleted."
+else
+  echo "Stack $STACK_NAME does not exist, no deletion needed."
+fi
 
-# echo "Deploying CloudFormation stack..."
+echo "Deploying CloudFormation stack..."
 
-# aws cloudformation deploy \
-#   --stack-name $STACK_NAME \
-#   --template-file $TEMPLATE_FILE \
-#   --capabilities CAPABILITY_NAMED_IAM \
-#   --parameter-overrides StageName=$STAGE_NAME
+aws cloudformation deploy \
+  --stack-name $STACK_NAME \
+  --template-file $TEMPLATE_FILE \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides StageName=$STAGE_NAME
 
-# echo "Deployment complete!"
+echo "Deployment complete!"
 
 WEB_SOCKET_API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name $STACK_NAME \
   --query "Stacks[0].Outputs[?OutputKey=='WebSocketApiEndpoint'].OutputValue" --output text)
