@@ -56,19 +56,19 @@ STACK_NAME="WebSocketChatStack"
 TEMPLATE_FILE="gateway_cloud_formation.yaml"
 STAGE_NAME="prod"
 
-echo "Checking if stack $STACK_NAME exists..."
+# echo "Checking if stack $STACK_NAME exists..."
 
-if aws cloudformation describe-stacks --stack-name $STACK_NAME >/dev/null 2>&1; then
-  echo "Stack $STACK_NAME exists, deleting..."
-  aws cloudformation delete-stack --stack-name $STACK_NAME
-  echo "Waiting for stack deletion to complete..."
-  aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME
-  echo "Previous stack deleted."
-else
-  echo "Stack $STACK_NAME does not exist, no deletion needed."
-fi
+# if aws cloudformation describe-stacks --stack-name $STACK_NAME >/dev/null 2>&1; then
+#   echo "Stack $STACK_NAME exists, deleting..."
+#   aws cloudformation delete-stack --stack-name $STACK_NAME
+#   echo "Waiting for stack deletion to complete..."
+#   aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME
+#   echo "Previous stack deleted."
+# else
+#   echo "Stack $STACK_NAME does not exist, no deletion needed."
+# fi
 
-echo "Deploying CloudFormation stack..."
+# echo "Deploying CloudFormation stack..."
 
 aws cloudformation deploy \
   --stack-name $STACK_NAME \
@@ -116,15 +116,20 @@ echo "Frontend deployed to bucket $BUCKET_NAME"
 
 # 生成前端网站访问URL
 if [[ "$REGION" == "us-east-1" ]]; then
-  WEBSITE_URL="http://${BUCKET_NAME}.s3-website.amazonaws.com"
+  WEBSITE_URL="https://${BUCKET_NAME}.s3-website.amazonaws.com"
 else
-  WEBSITE_URL="http://${BUCKET_NAME}.s3-website-${REGION}.amazonaws.com"
+  WEBSITE_URL="https://${BUCKET_NAME}.s3-website-${REGION}.amazonaws.com"
 fi
 
-echo "Frontend website URL: $WEBSITE_URL"
+FRONT_URL=$(aws cloudformation describe-stacks \
+  --stack-name $STACK_NAME \
+  --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionDomainName'].OutputValue" \
+  --output text)
+echo "HTTP Push API: $HTTP_API_ENDPOINT"
+echo "Frontend website URL: $FRONT_URL"
 
 HTTP_API_ENDPOINT=$(aws cloudformation describe-stacks \
-  --stack-name WebSocketChatStack \
+  --stack-name $STACK_NAME \
   --query "Stacks[0].Outputs[?OutputKey=='HttpApiEndpoint'].OutputValue" \
   --output text)
 echo "HTTP Push API: $HTTP_API_ENDPOINT"

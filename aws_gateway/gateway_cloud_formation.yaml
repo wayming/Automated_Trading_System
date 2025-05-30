@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: WebSocket Chat System with CloudWatch logging and DynamoDB connection tracking
+Description: WebSocket Chat System with CloudWatch logging, DynamoDB connection tracking, and CloudFront + ACM SSL for frontend HTTPS access
 
 Parameters:
   StageName:
@@ -85,6 +85,31 @@ Resources:
       IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HandleSendMessageFunction.Arn}/invocations
       PayloadFormatVersion: '1.0'
 
+  # Permission for API Gateway to invoke Lambda
+  HandleConnectFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref HandleConnectFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/$connect
+
+  HandleDisconnectFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref HandleDisconnectFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/$disconnect
+
+  HandleSendMessageFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref HandleSendMessageFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/POST/send
+
   HandleConnectFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -150,20 +175,30 @@ Resources:
           apigw_client = boto3.client('apigatewaymanagementapi',
               endpoint_url=f"https://{os.environ['API_GATEWAY_ID']}.execute-api.{os.environ['CURR_AWS_REGION']}.amazonaws.com/{os.environ['STAGE']}")
           def lambda_handler(event, context):
-              raw_body = event.get('body', '')
+              print("Received event:", json.dumps(event))
               try:
+                  raw_body = event.get('body', '')
                   body_json = json.loads(raw_body)
                   message = json.dumps(body_json, indent=2)
-              except Exception:
-                  message = raw_body
-              connections = table.scan(ProjectionExpression='connectionId')['Items']
-              for connection in connections:
-                  connectionId = connection['connectionId']
-                  try:
-                      apigw_client.post_to_connection(ConnectionId=connectionId, Data=message.encode('utf-8'))
-                  except apigw_client.exceptions.GoneException:
-                      table.delete_item(Key={'connectionId': connectionId})
-              return {'statusCode': 200}
+              except Exception as e:
+                  print("Error parsing body:", str(e))
+                  return {'statusCode': 400, 'body': 'Invalid request body'}
+
+              try:
+                  connections = table.scan(ProjectionExpression='connectionId')['Items']
+                  for connection in connections:
+                      connectionId = connection['connectionId']
+                      try:
+                          apigw_client.post_to_connection(
+                              ConnectionId=connectionId,
+                              Data=message.encode('utf-8')
+                          )
+                      except apigw_client.exceptions.GoneException:
+                          table.delete_item(Key={'connectionId': connectionId})
+                  return {'statusCode': 200}
+              except Exception as e:
+                  print("Unexpected error:", str(e))
+                  return {'statusCode': 500, 'body': 'Internal server error'}
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -190,17 +225,6 @@ Resources:
                 Action: [execute-api:ManageConnections]
                 Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/POST/@connections/*
 
-  # Allow HTTP API invokes lambda
-  HttpApiInvokePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref HandleSendMessageFunction
-      Action: lambda:InvokeFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/POST/send
-
-
-  # Log groups with DeletionPolicy: Delete
   ConnectFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
@@ -229,12 +253,28 @@ Resources:
       LogGroupName: !Sub /aws/apigateway/${WebSocketApi}
       RetentionInDays: 14
 
-  HttpApiLogGroup:
-    Type: AWS::Logs::LogGroup
-    DeletionPolicy: Delete
+  ApiGatewayCloudWatchRole:
+    Type: AWS::IAM::Role
     Properties:
-      LogGroupName: !Sub /aws/apigateway/${HttpApi}
-      RetentionInDays: 14
+      RoleName: ApiGatewayWebSocketLoggingRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ApiGatewayLoggingPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
 
   Deployment:
     Type: AWS::ApiGatewayV2::Deployment
@@ -245,7 +285,6 @@ Resources:
     Properties:
       ApiId: !Ref WebSocketApi
 
-  # For WebSocket API Stage
   Stage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
@@ -256,6 +295,12 @@ Resources:
       AccessLogSettings:
         DestinationArn: !GetAtt WebSocketApiLogGroup.Arn
         Format: '{"requestId":"$context.requestId","routeKey":"$context.routeKey","status":"$context.status"}'
+      DefaultRouteSettings:
+        DataTraceEnabled: true
+        LoggingLevel: INFO
+      Description: WebSocket Chat Stage
+      Tags:
+        Environment: !Ref StageName
 
   HttpApi:
     Type: AWS::ApiGatewayV2::Api
@@ -281,7 +326,12 @@ Resources:
         - - integrations
           - !Ref HttpIntegration
 
-  # For HTTP API Stage (add if not present, or update existing)
+  HttpApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/HttpPushApi-${StageName}
+      RetentionInDays: 14
+
   HttpApiStage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
@@ -292,11 +342,44 @@ Resources:
         DestinationArn: !GetAtt HttpApiLogGroup.Arn
         Format: '{"requestId":"$context.requestId","routeKey":"$context.routeKey","status":"$context.status"}'
 
+        
+  # CloudFront distribution (default domain + HTTPS)
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: QtsS3Origin
+            DomainName: qts-front.s3.amazonaws.com
+            S3OriginConfig: {}
+        DefaultCacheBehavior:
+          TargetOriginId: QtsS3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true  # Uses *.cloudfront.net HTTPS
+        PriceClass: PriceClass_100  # Lower cost tier (US, Canada, Europe)
+
 Outputs:
   HttpApiEndpoint:
     Description: "HTTP API Endpoint URL"
     Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/send"
+
   WebSocketApiEndpoint:
     Description: "WebSocket API Endpoint URL"
     Value: !Sub "wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
 
+  CloudFrontDistributionDomainName:
+    Description: "CloudFront domain name for frontend"
+    Value: !GetAtt CloudFrontDistribution.DomainName
