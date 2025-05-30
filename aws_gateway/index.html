@@ -1,33 +1,193 @@
 <!DOCTYPE html>
-<html>
-<head><title>WebSocket Demo</title></head>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>News Analysis</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #fff;
+      padding: 20px;
+    }
+
+    h2 {
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+
+    #messages {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message-card {
+      margin-bottom: 20px;
+      padding: 16px;
+      background-color: #f9f9f9;
+      border-left: 4px solid #3f51b5;
+      border-radius: 4px;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .timestamp {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 10px;
+    }
+
+    .term {
+      margin-left: 20px;
+      margin-top: 12px;
+      padding-left: 10px;
+      border-left: 2px solid #ddd;
+    }
+
+    .term-title {
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .score {
+      display: inline-block;
+      font-weight: bold;
+      color: green;
+      margin-left: 6px;
+    }
+
+    .driver, .risk {
+      margin-left: 12px;
+      padding-left: 10px;
+      margin-top: 4px;
+    }
+
+    .driver::before {
+      content: "🚀 ";
+    }
+
+    .risk::before {
+      content: "⚠️ ";
+    }
+
+    .alerts {
+      margin-top: 10px;
+      margin-left: 12px;
+    }
+
+    .alerts ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .alerts li::before {
+      content: "• ";
+    }
+  </style>
+</head>
 <body>
-  <h3>WebSocket Messages</h3>
-  <div id="messages" style="border:1px solid #ccc; height:300px; overflow:auto;"></div>
-  <input id="input" type="text" placeholder="Type message"/>
-  <button onclick="sendMessage()">Send</button>
+  <h2>News Analysis</h2>
+  <div id="messages"></div>
 
   <script>
     const ws = new WebSocket("<WEB_SOCKET_API_ENDPOINT>");
 
-    ws.onopen = () => console.log("Connected");
-    ws.onclose = () => console.log("Disconnected");
-    ws.onerror = e => console.error("Error:", e);
+    ws.onopen = () => console.log("WebSocket Connected");
+    ws.onclose = () => console.log("WebSocket Disconnected");
+    ws.onerror = e => console.error("WebSocket Error:", e);
 
     ws.onmessage = event => {
-      const msgDiv = document.getElementById("messages");
-      const p = document.createElement("p");
-      p.textContent = event.data;
-      msgDiv.appendChild(p);
-      msgDiv.scrollTop = msgDiv.scrollHeight;
+      handleIncomingMessage(event.data);
     };
 
-    function sendMessage() {
-      const input = document.getElementById("input");
-      const msg = input.value.trim();
-      if (msg) {
-        ws.send(JSON.stringify({ action: "sendmessage", message: msg }));
-        input.value = "";
+    function formatTimestamp(date) {
+      const pad = (n) => n.toString().padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} `
+           + `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    }
+
+    function handleIncomingMessage(dataStr) {
+      let data;
+      try {
+        data = JSON.parse(dataStr);
+      } catch (e) {
+        console.error("Invalid JSON:", dataStr);
+        return;
+      }
+
+      const container = document.getElementById("messages");
+      const card = document.createElement("div");
+      card.className = "message-card";
+
+      const title = document.createElement("div");
+      title.className = "title";
+      title.textContent = `${data.stock_code} - ${data.stock_name}`;
+      card.appendChild(title);
+
+      const time = document.createElement("div");
+      time.className = "timestamp";
+      time.textContent = `🕒 ${formatTimestamp(new Date())}`;
+      card.appendChild(time);
+
+      const analysis = data.analysis || {};
+      for (const term in analysis) {
+        const termBox = document.createElement("div");
+        termBox.className = "term";
+
+        const termTitle = document.createElement("div");
+        termTitle.className = "term-title";
+        termTitle.textContent = `${term.replace('_', ' ').toUpperCase()} `;
+
+        const score = document.createElement("span");
+        score.className = "score";
+        score.textContent = `[${analysis[term].score}]`;
+        termTitle.appendChild(score);
+        termBox.appendChild(termTitle);
+
+        const driver = document.createElement("div");
+        driver.className = "driver";
+        driver.textContent = analysis[term].driver;
+        termBox.appendChild(driver);
+
+        const risk = document.createElement("div");
+        risk.className = "risk";
+        risk.textContent = analysis[term].risk;
+        termBox.appendChild(risk);
+
+        card.appendChild(termBox);
+      }
+
+      if (data.alerts && data.alerts.length > 0) {
+        const alertsBox = document.createElement("div");
+        alertsBox.className = "alerts";
+
+        const alertTitle = document.createElement("div");
+        alertTitle.textContent = "Alerts:";
+        alertTitle.style.fontWeight = "bold";
+        alertsBox.appendChild(alertTitle);
+
+        const ul = document.createElement("ul");
+        ul.style.listStyleType = "disc";
+        ul.style.margin = "0 0 0 20px";  // Optional left margin
+        ul.style.padding = "0";
+
+        data.alerts.forEach(alert => {
+          const li = document.createElement("li");
+          li.textContent = alert;
+          ul.appendChild(li);
+        });
+
+        alertsBox.appendChild(ul);
+        card.appendChild(alertsBox);
+      }
+
+      container.prepend(card);
+
+      while (container.children.length > 10) {
+        container.removeChild(container.lastChild);
       }
     }
   </script>

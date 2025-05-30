@@ -70,13 +70,13 @@ STAGE_NAME="prod"
 
 # echo "Deploying CloudFormation stack..."
 
-aws cloudformation deploy \
-  --stack-name $STACK_NAME \
-  --template-file $TEMPLATE_FILE \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides StageName=$STAGE_NAME
+# aws cloudformation deploy \
+#   --stack-name $STACK_NAME \
+#   --template-file $TEMPLATE_FILE \
+#   --capabilities CAPABILITY_NAMED_IAM \
+#   --parameter-overrides StageName=$STAGE_NAME
 
-echo "Deployment complete!"
+# echo "Deployment complete!"
 
 WEB_SOCKET_API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name $STACK_NAME \
   --query "Stacks[0].Outputs[?OutputKey=='WebSocketApiEndpoint'].OutputValue" --output text)
@@ -114,6 +114,25 @@ rm $TMP_INDEX
 
 echo "Frontend deployed to bucket $BUCKET_NAME"
 
+# 获取 CloudFront 分发 ID
+S3_ORIGIN="$BUCKET_NAME.s3.amazonaws.com"
+DISTRIBUTION_ID=$(aws cloudfront list-distributions \
+  --query "DistributionList.Items[?Origins.Items[0].DomainName=='${S3_ORIGIN}'].Id" \
+  --output text)
+
+if [ -z "$DISTRIBUTION_ID" ]; then
+  echo "❌ No CloudFront Distribution found for ${S3_ORIGIN} "
+  exit 1
+fi
+
+# 执行失效请求
+INVALIDATION_ID=$(aws cloudfront create-invalidation \
+  --distribution-id "$DISTRIBUTION_ID" \
+  --paths "/*" \
+  --query "Invalidation.Id" \
+  --output text)
+
+
 # 生成前端网站访问URL
 if [[ "$REGION" == "us-east-1" ]]; then
   WEBSITE_URL="https://${BUCKET_NAME}.s3-website.amazonaws.com"
@@ -125,7 +144,6 @@ FRONT_URL=$(aws cloudformation describe-stacks \
   --stack-name $STACK_NAME \
   --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionDomainName'].OutputValue" \
   --output text)
-echo "HTTP Push API: $HTTP_API_ENDPOINT"
 echo "Frontend website URL: $FRONT_URL"
 
 HTTP_API_ENDPOINT=$(aws cloudformation describe-stacks \
