@@ -2,7 +2,6 @@
 
 set -e
 
-# 自动获取 AWS 区域
 if [ -n "$AWS_REGION" ]; then
   REGION=$AWS_REGION
 else
@@ -16,14 +15,11 @@ fi
 
 ROLE_NAME="ApiGatewayCloudWatchLogsRole"
 
-# 获取 account ID
+# Account global setting which can not be configured via CloudFormation
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-
-# 检查 CloudWatch 日志角色是否存在
 ROLE_EXISTS=$(aws iam get-role --role-name "$ROLE_NAME" --query 'Role.Arn' --output text 2>/dev/null || echo "none")
-
 if [ "$ROLE_EXISTS" = "none" ]; then
-  echo "🔧 创建 CloudWatch 日志角色: $ROLE_NAME"
+  echo "🔧 Create CloudWatch Role for API Gateway: $ROLE_NAME"
 
   aws iam create-role --role-name "$ROLE_NAME" \
     --assume-role-policy-document '{
@@ -39,15 +35,13 @@ if [ "$ROLE_EXISTS" = "none" ]; then
     --role-name "$ROLE_NAME" \
     --policy-arn arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
 
-  echo "⏳ 等待 IAM 角色生效..."
+  echo "⏳ Wait IAM Role To Be Effective..."
   sleep 10
 fi
 
-# 获取 Role ARN
+# Attatch CloudWatch Role
 ROLE_ARN=$(aws iam get-role --role-name "$ROLE_NAME" --query 'Role.Arn' --output text)
-
-# 设置 API Gateway 账户日志角色
-echo "🔧 设置 API Gateway CloudWatch 日志角色..."
+echo "🔧 Set API Gateway CloudWatch Role..."
 aws apigateway update-account \
   --patch-operations op=replace,path=/cloudwatchRoleArn,value="$ROLE_ARN"
 
@@ -58,23 +52,23 @@ STAGE_NAME="prod"
 
 echo "Checking if stack $STACK_NAME exists..."
 
-if aws cloudformation describe-stacks --stack-name $STACK_NAME >/dev/null 2>&1; then
-  echo "Stack $STACK_NAME exists, deleting..."
-  aws cloudformation delete-stack --stack-name $STACK_NAME
-  echo "Waiting for stack deletion to complete..."
-  aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME
-  echo "Previous stack deleted."
-else
-  echo "Stack $STACK_NAME does not exist, no deletion needed."
-fi
+# if aws cloudformation describe-stacks --stack-name $STACK_NAME >/dev/null 2>&1; then
+#   echo "Stack $STACK_NAME exists, deleting..."
+#   aws cloudformation delete-stack --stack-name $STACK_NAME
+#   echo "Waiting for stack deletion to complete..."
+#   aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME
+#   echo "Previous stack deleted."
+# else
+#   echo "Stack $STACK_NAME does not exist, no deletion needed."
+# fi
 
-echo "Deploying CloudFormation stack..."
+# echo "Deploying CloudFormation stack..."
 
-aws cloudformation deploy \
-  --stack-name $STACK_NAME \
-  --template-file $TEMPLATE_FILE \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides StageName=$STAGE_NAME
+# aws cloudformation deploy \
+#   --stack-name $STACK_NAME \
+#   --template-file $TEMPLATE_FILE \
+#   --capabilities CAPABILITY_NAMED_IAM \
+#   --parameter-overrides StageName=$STAGE_NAME
 
 echo "Deployment complete!"
 
@@ -83,9 +77,8 @@ WEB_SOCKET_API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name $STACK
 
 echo "WebSocket API Endpoint: $WEB_SOCKET_API_ENDPOINT"
 
+# If S3 bucket already exists
 BUCKET_NAME="qts-front"
-
-# 检查bucket是否存在
 if aws s3api head-bucket --bucket $BUCKET_NAME 2>/dev/null; then
   echo "Bucket $BUCKET_NAME already exists."
 else
@@ -93,10 +86,10 @@ else
   aws s3 mb s3://$BUCKET_NAME
 fi
 
-# 设置静态网站托管
+# Static Web Pages
 aws s3 website s3://$BUCKET_NAME/ --index-document index.html
 
-# 设置公共访问策略，注意你需要确认是否允许公开访问
+# S3 public access
 aws s3api put-public-access-block \
   --bucket $BUCKET_NAME \
   --public-access-block-configuration \
@@ -104,7 +97,7 @@ aws s3api put-public-access-block \
 
 aws s3api put-bucket-policy --bucket $BUCKET_NAME --policy file://bucket_policy.json
 
-# 替换 index.html 中 <WEB_SOCKET_API_ENDPOINT> 为实际的 WEB_SOCKET_API_ENDPOINT
+# Replace <WEB_SOCKET_API_ENDPOINT> with WEB_SOCKET_API_ENDPOINT
 TMP_INDEX="index.tmp.html"
 sed "s|<WEB_SOCKET_API_ENDPOINT>|$WEB_SOCKET_API_ENDPOINT|g" index.html > $TMP_INDEX
 
@@ -114,7 +107,7 @@ rm $TMP_INDEX
 
 echo "Frontend deployed to bucket $BUCKET_NAME"
 
-# 获取 CloudFront 分发 ID
+# Distribution ID
 S3_ORIGIN="$BUCKET_NAME.s3.amazonaws.com"
 DISTRIBUTION_ID=$(aws cloudfront list-distributions \
   --query "DistributionList.Items[?Origins.Items[0].DomainName=='${S3_ORIGIN}'].Id" \
@@ -125,15 +118,14 @@ if [ -z "$DISTRIBUTION_ID" ]; then
   exit 1
 fi
 
-# 执行失效请求
+# Invalidate static html pages
 INVALIDATION_ID=$(aws cloudfront create-invalidation \
   --distribution-id "$DISTRIBUTION_ID" \
   --paths "/*" \
   --query "Invalidation.Id" \
   --output text)
 
-
-# 生成前端网站访问URL
+# S3 frontend URL
 if [[ "$REGION" == "us-east-1" ]]; then
   WEBSITE_URL="https://${BUCKET_NAME}.s3-website.amazonaws.com"
 else

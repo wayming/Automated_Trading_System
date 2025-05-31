@@ -26,6 +26,9 @@
       background-color: #f9f9f9;
       border-left: 4px solid #3f51b5;
       border-radius: 4px;
+
+      animation: slideDownFadeIn 0.3s ease-out;
+      transition: transform 0.3s ease-out, opacity 0.3s ease-out;
     }
 
     .title {
@@ -40,52 +43,28 @@
       margin-bottom: 10px;
     }
 
-    .term {
-      margin-left: 20px;
-      margin-top: 12px;
-      padding-left: 10px;
-      border-left: 2px solid #ddd;
-    }
-
-    .term-title {
-      font-weight: bold;
-      margin-bottom: 4px;
-    }
-
-    .score {
-      display: inline-block;
-      font-weight: bold;
-      color: green;
-      margin-left: 6px;
-    }
-
-    .driver, .risk {
-      margin-left: 12px;
-      padding-left: 10px;
-      margin-top: 4px;
-    }
-
-    .driver::before {
-      content: "🚀 ";
-    }
-
-    .risk::before {
-      content: "⚠️ ";
-    }
-
-    .alerts {
-      margin-top: 10px;
-      margin-left: 12px;
-    }
-
-    .alerts ul {
+    ul {
+      list-style-position: inside;
       margin: 0;
-      padding-left: 20px;
+      padding-left: 0;
     }
 
-    .alerts li::before {
-      content: "• ";
+    li {
+      margin-left: 0;
+      padding-left: 0;
     }
+  
+    @keyframes slideDownFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -122,73 +101,56 @@
       const card = document.createElement("div");
       card.className = "message-card";
 
-      const title = document.createElement("div");
-      title.className = "title";
-      title.textContent = `${data.stock_code} - ${data.stock_name}`;
-      card.appendChild(title);
-
       const time = document.createElement("div");
       time.className = "timestamp";
       time.textContent = `🕒 ${formatTimestamp(new Date())}`;
       card.appendChild(time);
 
-      const analysis = data.analysis || {};
-      for (const term in analysis) {
-        const termBox = document.createElement("div");
-        termBox.className = "term";
-
-        const termTitle = document.createElement("div");
-        termTitle.className = "term-title";
-        termTitle.textContent = `${term.replace('_', ' ').toUpperCase()} `;
-
-        const score = document.createElement("span");
-        score.className = "score";
-        score.textContent = `[${analysis[term].score}]`;
-        termTitle.appendChild(score);
-        termBox.appendChild(termTitle);
-
-        const driver = document.createElement("div");
-        driver.className = "driver";
-        driver.textContent = analysis[term].driver;
-        termBox.appendChild(driver);
-
-        const risk = document.createElement("div");
-        risk.className = "risk";
-        risk.textContent = analysis[term].risk;
-        termBox.appendChild(risk);
-
-        card.appendChild(termBox);
-      }
-
-      if (data.alerts && data.alerts.length > 0) {
-        const alertsBox = document.createElement("div");
-        alertsBox.className = "alerts";
-
-        const alertTitle = document.createElement("div");
-        alertTitle.textContent = "Alerts:";
-        alertTitle.style.fontWeight = "bold";
-        alertsBox.appendChild(alertTitle);
-
-        const ul = document.createElement("ul");
-        ul.style.listStyleType = "disc";
-        ul.style.margin = "0 0 0 20px";  // Optional left margin
-        ul.style.padding = "0";
-
-        data.alerts.forEach(alert => {
-          const li = document.createElement("li");
-          li.textContent = alert;
-          ul.appendChild(li);
-        });
-
-        alertsBox.appendChild(ul);
-        card.appendChild(alertsBox);
-      }
+      const content = renderJsonAsElements(data);
+      card.appendChild(content);
 
       container.prepend(card);
 
       while (container.children.length > 10) {
         container.removeChild(container.lastChild);
       }
+    }
+
+    function renderJsonAsElements(obj, depth = 0) {
+      const container = document.createElement("div");
+      container.style.marginLeft = `${depth * 16}px`;
+
+      if (Array.isArray(obj)) {
+        const ul = document.createElement("ul");
+        // ul.style.marginLeft = `${depth * 8}px`;
+
+        obj.forEach((item) => {
+          const li = document.createElement("li");
+          if (typeof item === "object" && item !== null) {
+            li.appendChild(renderJsonAsElements(item, depth + 1));
+          } else {
+            li.textContent = String(item);
+          }
+          ul.appendChild(li);
+        });
+        container.appendChild(ul);
+      } else if (typeof obj === "object" && obj !== null) {
+        for (const key in obj) {
+          const keyElem = document.createElement("div");
+          keyElem.style.fontWeight = "bold";
+          keyElem.textContent = `${key}:`;
+          container.appendChild(keyElem);
+
+          const valueElem = renderJsonAsElements(obj[key], depth + 1);
+          container.appendChild(valueElem);
+        }
+      } else {
+        const valueElem = document.createElement("div");
+        valueElem.textContent = String(obj);
+        container.appendChild(valueElem);
+      }
+
+      return container;
     }
   </script>
 </body>
