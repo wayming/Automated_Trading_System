@@ -21,6 +21,22 @@ Resources:
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
 
+  AnalysisMessagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: AnalysisMessages
+      AttributeDefinitions:
+        - AttributeName: partitionKey
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+      KeySchema:
+        - AttributeName: partitionKey
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      
   WebSocketApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
@@ -119,17 +135,71 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
-          TABLE_NAME: !Ref WebSocketConnectionsTable
+          CONNECTIONS_TABLE: !Ref WebSocketConnectionsTable
+          MESSAGES_TABLE: !Ref AnalysisMessagesTable
+          API_GATEWAY_ID: !Ref WebSocketApi
+          CURR_AWS_REGION: !Ref 'AWS::Region'
+          STAGE: !Ref StageName
       Code:
         ZipFile: |
           import boto3
           import os
+          import json
+          import time
+          from boto3.dynamodb.conditions import Key
+
           dynamodb = boto3.resource('dynamodb')
-          table = dynamodb.Table(os.environ['TABLE_NAME'])
+          connections_table = dynamodb.Table(os.environ['CONNECTIONS_TABLE'])
+          messages_table = dynamodb.Table(os.environ['MESSAGES_TABLE'])
+    
+          gateway_url = f"https://{os.environ['API_GATEWAY_ID']}.execute-api.{os.environ['CURR_AWS_REGION']}.amazonaws.com/{os.environ['STAGE']}"
+          apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=gateway_url)
+          print(f"API Gateway endpoint URL: {gateway_url}")
+
+          def safe_post_to_connection(client, connection_id, data, retries=3):
+              for i in range(retries):
+                  try:
+                      client.post_to_connection(ConnectionId=connection_id, Data=data)
+                      return True
+                  except client.exceptions.GoneException:
+                      print(f"Connection {connection_id} gone")
+                      connections_table.delete_item(Key={'connectionId': connection_id})
+                      return False
+                  except Exception as e:
+                      print(f"Attempt {i+1} failed: {e}")
+                      time.sleep(0.1)  # wait a bit before retry
+              return False
+              
           def lambda_handler(event, context):
-              connectionId = event['requestContext']['connectionId']
-              table.put_item(Item={'connectionId': connectionId})
+              connection_id = event['requestContext']['connectionId']
+              print(f"New connection: {connection_id}")
+              
+              try:
+                  connections_table.put_item(Item={'connectionId': connection_id})
+                  print("Connection saved to DynamoDB")
+              except Exception as e:
+                  print(f"Failed to save connection: {e}")
+                  return {'statusCode': 500, 'body': 'Failed to save connection'}
+
+              # fetch and send last 10 messages (your existing code)
+              try:
+                  response = messages_table.query(
+                      KeyConditionExpression=Key('partitionKey').eq('global'),
+                      ScanIndexForward=False,
+                      Limit=10
+                  )
+                  messages = response.get('Items', [])[::-1]
+                  for msg in messages:
+                      print(f"Send message to {connection_id}")
+                      apigw_client.post_to_connection(
+                          ConnectionId=connection_id,
+                          Data=msg['message'].encode('utf-8')
+                      )
+              except Exception as e:
+                  print(f"Error sending messages: {str(e)}")
+
               return {'statusCode': 200}
+
 
   HandleDisconnectFunction:
     Type: AWS::Lambda::Function
@@ -161,7 +231,8 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
-          TABLE_NAME: !Ref WebSocketConnectionsTable
+          CONNECTIONS_TABLE: !Ref WebSocketConnectionsTable
+          MESSAGES_TABLE: !Ref AnalysisMessagesTable
           API_GATEWAY_ID: !Ref WebSocketApi
           CURR_AWS_REGION: !Ref 'AWS::Region'
           STAGE: !Ref StageName
@@ -170,35 +241,69 @@ Resources:
           import boto3
           import os
           import json
-          dynamodb = boto3.resource('dynamodb')
-          table = dynamodb.Table(os.environ['TABLE_NAME'])
-          apigw_client = boto3.client('apigatewaymanagementapi',
-              endpoint_url=f"https://{os.environ['API_GATEWAY_ID']}.execute-api.{os.environ['CURR_AWS_REGION']}.amazonaws.com/{os.environ['STAGE']}")
+          import time
+          from boto3.dynamodb.conditions import Key
+
+          ddb = boto3.resource('dynamodb')
+          conn_table = ddb.Table(os.environ['CONNECTIONS_TABLE'])
+          msg_table = ddb.Table(os.environ['MESSAGES_TABLE'])
+
+          gateway_url = f"https://{os.environ['API_GATEWAY_ID']}.execute-api.{os.environ['CURR_AWS_REGION']}.amazonaws.com/{os.environ['STAGE']}"
+          apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=gateway_url)
+          print(f"API Gateway endpoint URL: {gateway_url}")
+
           def lambda_handler(event, context):
-              print("Received event:", json.dumps(event))
               try:
-                  raw_body = event.get('body', '')
-                  body_json = json.loads(raw_body)
-                  message = json.dumps(body_json, indent=2)
+                  # Read body as raw string
+                  message = event.get('body', '')
+                  if not message:
+                      return {'statusCode': 400, 'body': 'Empty message body'}
               except Exception as e:
-                  print("Error parsing body:", str(e))
-                  return {'statusCode': 400, 'body': 'Invalid request body'}
+                  return {'statusCode': 400, 'body': f"Error reading message: {str(e)}"}
+
+              timestamp = int(time.time() * 1000)
+              msg_item = {
+                  'partitionKey': 'global',
+                  'timestamp': timestamp,
+                  'message': message  # Store as-is
+              }
+
+              print("Storing message:", msg_item)
 
               try:
-                  connections = table.scan(ProjectionExpression='connectionId')['Items']
-                  for connection in connections:
-                      connectionId = connection['connectionId']
-                      try:
-                          apigw_client.post_to_connection(
-                              ConnectionId=connectionId,
-                              Data=message.encode('utf-8')
-                          )
-                      except apigw_client.exceptions.GoneException:
-                          table.delete_item(Key={'connectionId': connectionId})
-                  return {'statusCode': 200}
+                  msg_table.put_item(Item=msg_item)
               except Exception as e:
-                  print("Unexpected error:", str(e))
-                  return {'statusCode': 500, 'body': 'Internal server error'}
+                  print("Error writing to DynamoDB:", str(e))
+                  return {'statusCode': 500, 'body': 'Failed to write message'}
+                  
+              # Trim to latest 10 messages
+              messages = msg_table.query(
+                  KeyConditionExpression=Key('partitionKey').eq('global'),
+                  ScanIndexForward=True  # oldest first
+              )['Items']
+
+              if len(messages) > 10:
+                  for old in messages[:-10]:
+                      msg_table.delete_item(
+                          Key={
+                              'partitionKey': 'global',
+                              'timestamp': old['timestamp']
+                          }
+                      )
+
+              # Send to all connections
+              connections = conn_table.scan(ProjectionExpression='connectionId')['Items']
+              for connection in connections:
+                  try:
+                      print(f"Send message to {connection['connectionId']}")
+                      apigw_client.post_to_connection(
+                          ConnectionId=connection['connectionId'],
+                          Data=message.encode('utf-8')
+                      )
+                  except apigw_client.exceptions.GoneException:
+                      conn_table.delete_item(Key={'connectionId': connection['connectionId']})
+
+              return {'statusCode': 200}
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -224,6 +329,12 @@ Resources:
               - Effect: Allow
                 Action: [execute-api:ManageConnections]
                 Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/POST/@connections/*
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                  - dynamodb:DeleteItem
+                Resource: !GetAtt AnalysisMessagesTable.Arn
 
   ConnectFunctionLogGroup:
     Type: AWS::Logs::LogGroup

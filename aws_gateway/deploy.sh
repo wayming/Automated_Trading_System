@@ -62,13 +62,13 @@ echo "Checking if stack $STACK_NAME exists..."
 #   echo "Stack $STACK_NAME does not exist, no deletion needed."
 # fi
 
-# echo "Deploying CloudFormation stack..."
+echo "Deploying CloudFormation stack..."
 
-# aws cloudformation deploy \
-#   --stack-name $STACK_NAME \
-#   --template-file $TEMPLATE_FILE \
-#   --capabilities CAPABILITY_NAMED_IAM \
-#   --parameter-overrides StageName=$STAGE_NAME
+aws cloudformation deploy \
+  --stack-name $STACK_NAME \
+  --template-file $TEMPLATE_FILE \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides StageName=$STAGE_NAME
 
 echo "Deployment complete!"
 
