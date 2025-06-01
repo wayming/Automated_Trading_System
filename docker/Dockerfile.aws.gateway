@@ -1,0 +1,20 @@
+FROM python:3.10
+
+WORKDIR /app
+
+COPY aws_gateway/ /app/aws_gateway
+COPY proto /app/proto
+
+RUN pip install --upgrade pip && \
+    pip install grpcio grpcio-tools requests
+
+RUN python -m grpc_tools.protoc \
+    -I./proto \
+    --python_out=./proto \
+    --grpc_python_out=./proto \
+    ./proto/analysis_push_gateway.proto
+
+ENV PYTHONPATH=/app/aws_gateway:/app/proto
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "-m", "aws_gateway.gateway_relay_server"]

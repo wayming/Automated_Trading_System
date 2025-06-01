@@ -1,5 +1,6 @@
 # conda activate
 python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. trade_executor.proto
 python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. stock_hub.proto
+python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. analysis_push_gateway.proto
 
 

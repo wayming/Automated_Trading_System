@@ -143,4 +143,7 @@ HTTP_API_ENDPOINT=$(aws cloudformation describe-stacks \
   --query "Stacks[0].Outputs[?OutputKey=='HttpApiEndpoint'].OutputValue" \
   --output text)
 echo "HTTP Push API: $HTTP_API_ENDPOINT"
+DOCKER_ENV_TEMPLATE="../docker/.env.template"
+DOCKER_ENV="../docker/.env"
+cat $DOCKER_ENV_TEMPLATE | sed "s|<HTTP_API_ENDPOINT>|$HTTP_API_ENDPOINT|g" > $DOCKER_ENV
 export HTTP_API_ENDPOINT=$HTTP_API_ENDPOINT

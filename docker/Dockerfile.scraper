@@ -70,6 +70,8 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED 1
 ENV PYTHONPATH=/app/proto:/app/news_scraper
 
+RUN google-chrome-stable --version
+
 # Run the Python script when the container starts
 # CMD ["xvfb-run", "-a", "python", "-m", "news_scraper.scraper_investing"]
 CMD ["tail", "-f", "/dev/null"]

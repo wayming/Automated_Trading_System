@@ -73,6 +73,8 @@ services:
       dockerfile: docker/Dockerfile.analyser
     env_file:
       - .env
+    environment:
+      - AWS_GATEWAY_ENDPOINT=aws_gateway:50053
     volumes:
       - ../output:/app/output  # Mount the current directory to /app in the container
     command: python -m news_scraper.analyser_investing
@@ -90,6 +92,8 @@ services:
       dockerfile: docker/Dockerfile.analyser
     env_file:
       - .env
+    environment:
+      - AWS_GATEWAY_ENDPOINT=aws_gateway:50053
     volumes:
       - ../output:/app/output  # Mount volume
     command: python -m news_scraper.analyser_trading_view
@@ -97,6 +101,8 @@ services:
       rabbitmq:
         condition: service_healthy # RabbitMQ begin to accept connections
       mock_executor:
+        condition: service_started
+      aws_gateway:
         condition: service_started
     networks:
       - scraper-network
@@ -121,6 +127,19 @@ services:
       dockerfile: docker/Dockerfile.stock.hub
     ports:
       - "50052:50052"
+    volumes:
+      - ../output:/app/output  # Mount volume
+    networks:
+      - scraper-network
+
+  aws_gateway:
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.aws.gateway
+    env_file:
+      - .env
+    ports:
+      - "50053:50053"
     volumes:
       - ../output:/app/output  # Mount volume
     networks:

@@ -41,7 +41,7 @@ class TradingViewScraper(NewsScraper):
         options = uc.ChromeOptions()
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--headless=new")
-        return uc.Chrome(options=options)
+        return uc.Chrome(options=options, version_main=136)
 
     def _save_cookies(self):
         with open(self.cookies_path, "wb") as file:

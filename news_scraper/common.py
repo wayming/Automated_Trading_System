@@ -1,24 +1,43 @@
 # common.py
 
-import logging b  
+import logging
 import os
 import aio_pika
 from typing import Tuple
 
+import grpc.aio
+from proto import analysis_push_gateway_pb2 as pb2
+from proto import analysis_push_gateway_pb2_grpc as pb2_grpc
+
+
 def new_logger(file_path: str) -> logging.Logger:
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-    logging.basicConfig(
-        filename=file_path,
-        filemode='a',
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        level=logging.INFO
-    )
-    return logging.getLogger(__name__)
+    logger = logging.getLogger(file_path) # Single instance
+    logger.setLevel(logging.INFO)
 
+    if not logger.handlers:
+        # Console handler
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.INFO)
+        ch_formatter = logging.Formatter("[%(levelname)s] %(message)s")
+        ch.setFormatter(ch_formatter)
 
+        # File handler
+        fh = logging.FileHandler(file_path)
+        fh.setLevel(logging.INFO)
+        fh_formatter = logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+        fh.setFormatter(fh_formatter)
+
+        logger.addHandler(ch)
+        logger.addHandler(fh)
+
+    return logger
 
 async def new_mq_conn(queue_name: str) -> Tuple[aio_pika.RobustConnection, aio_pika.Queue]:
+    """ Caller needs to handle the exception
+    """
     connection = await aio_pika.connect_robust(
         host="rabbitmq",
         heartbeat=600,
@@ -26,3 +45,10 @@ async def new_mq_conn(queue_name: str) -> Tuple[aio_pika.RobustConnection, aio_p
     channel = await connection.channel()
     queue = await channel.declare_queue(queue_name, durable=True)
     return connection, queue
+
+async def new_aws_conn(endpoint: str):
+    """ Caller needs to handle the exception
+    """
+    channel = grpc.aio.insecure_channel(endpoint)
+    stub = pb2_grpc.AnalysisPushGatewayStub(channel)
+    return stub
