@@ -126,6 +126,19 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/POST/send
 
+  PostConnectWorkerInvokePermission:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: AllowAsyncInvokeWorker
+      Roles:
+        - !Ref LambdaExecutionRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: lambda:InvokeFunction
+            Resource: !GetAtt PostConnectWorkerFunction.Arn
+
   HandleConnectFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -140,66 +153,34 @@ Resources:
           API_GATEWAY_ID: !Ref WebSocketApi
           CURR_AWS_REGION: !Ref 'AWS::Region'
           STAGE: !Ref StageName
+          ASYNC_CONNECT_WORKER: !Ref PostConnectWorkerFunction
       Code:
         ZipFile: |
-          import boto3
-          import os
-          import json
-          import time
+          import boto3, os, json
           from boto3.dynamodb.conditions import Key
 
-          dynamodb = boto3.resource('dynamodb')
-          connections_table = dynamodb.Table(os.environ['CONNECTIONS_TABLE'])
-          messages_table = dynamodb.Table(os.environ['MESSAGES_TABLE'])
-    
-          gateway_url = f"https://{os.environ['API_GATEWAY_ID']}.execute-api.{os.environ['CURR_AWS_REGION']}.amazonaws.com/{os.environ['STAGE']}"
-          apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=gateway_url)
-          print(f"API Gateway endpoint URL: {gateway_url}")
+          ddb = boto3.resource('dynamodb')
+          lambda_client = boto3.client('lambda')
+          connections_table = ddb.Table(os.environ['CONNECTIONS_TABLE'])
 
-          def safe_post_to_connection(client, connection_id, data, retries=3):
-              for i in range(retries):
-                  try:
-                      client.post_to_connection(ConnectionId=connection_id, Data=data)
-                      return True
-                  except client.exceptions.GoneException:
-                      print(f"Connection {connection_id} gone")
-                      connections_table.delete_item(Key={'connectionId': connection_id})
-                      return False
-                  except Exception as e:
-                      print(f"Attempt {i+1} failed: {e}")
-                      time.sleep(0.1)  # wait a bit before retry
-              return False
-              
           def lambda_handler(event, context):
               connection_id = event['requestContext']['connectionId']
               print(f"New connection: {connection_id}")
-              
               try:
                   connections_table.put_item(Item={'connectionId': connection_id})
-                  print("Connection saved to DynamoDB")
               except Exception as e:
                   print(f"Failed to save connection: {e}")
-                  return {'statusCode': 500, 'body': 'Failed to save connection'}
+                  return {'statusCode': 500, 'body': 'DB Error'}
 
-              # fetch and send last 10 messages (your existing code)
               try:
-                  response = messages_table.query(
-                      KeyConditionExpression=Key('partitionKey').eq('global'),
-                      ScanIndexForward=False,
-                      Limit=10
+                  lambda_client.invoke(
+                      FunctionName=os.environ['ASYNC_CONNECT_WORKER'],
+                      InvocationType='Event',
+                      Payload=json.dumps({'connectionId': connection_id})
                   )
-                  messages = response.get('Items', [])[::-1]
-                  for msg in messages:
-                      print(f"Send message to {connection_id}")
-                      apigw_client.post_to_connection(
-                          ConnectionId=connection_id,
-                          Data=msg['message'].encode('utf-8')
-                      )
               except Exception as e:
-                  print(f"Error sending messages: {str(e)}")
-
+                  print(f"Failed to invoke async worker: {e}")
               return {'statusCode': 200}
-
 
   HandleDisconnectFunction:
     Type: AWS::Lambda::Function
@@ -221,6 +202,52 @@ Resources:
               connectionId = event['requestContext']['connectionId']
               table.delete_item(Key={'connectionId': connectionId})
               return {'statusCode': 200}
+
+  PostConnectWorkerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: PostConnectWorkerFunction
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          MESSAGES_TABLE: !Ref AnalysisMessagesTable
+          API_GATEWAY_ID: !Ref WebSocketApi
+          CURR_AWS_REGION: !Ref 'AWS::Region'
+          STAGE: !Ref StageName
+      Code:
+        ZipFile: |
+          import boto3, os, json, time
+          from boto3.dynamodb.conditions import Key
+
+          def lambda_handler(event, context):
+              connection_id = event.get('connectionId')
+              print(f"Async PostConnectWorker: {connection_id}")
+
+              ddb = boto3.resource('dynamodb')
+              msg_table = ddb.Table(os.environ['MESSAGES_TABLE'])
+
+              gateway_url = f"https://{os.environ['API_GATEWAY_ID']}.execute-api.{os.environ['CURR_AWS_REGION']}.amazonaws.com/{os.environ['STAGE']}"
+              apigw = boto3.client('apigatewaymanagementapi', endpoint_url=gateway_url)
+
+              try:
+                  response = msg_table.query(
+                      KeyConditionExpression=Key('partitionKey').eq('global'),
+                      ScanIndexForward=False,
+                      Limit=10
+                  )
+                  messages = response.get('Items', [])[::-1]
+                  for msg in messages:
+                      apigw.post_to_connection(
+                          ConnectionId=connection_id,
+                          Data=msg['message'].encode('utf-8')
+                      )
+              except apigw.exceptions.GoneException:
+                  print(f"Connection {connection_id} is gone.")
+              except Exception as e:
+                  print(f"Error sending: {e}")
+
 
   HandleSendMessageFunction:
     Type: AWS::Lambda::Function
@@ -355,6 +382,12 @@ Resources:
     DeletionPolicy: Delete
     Properties:
       LogGroupName: /aws/lambda/HandleSendMessageFunction
+      RetentionInDays: 14
+
+  PostConnectWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/PostConnectWorkerFunction
       RetentionInDays: 14
 
   WebSocketApiLogGroup:
