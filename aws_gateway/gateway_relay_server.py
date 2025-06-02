@@ -43,6 +43,10 @@ class AnalysisPushGatewayServicer(pb2_grpc.AnalysisPushGatewayServicer):
                     data=message,  # Send as plain text
                     headers=headers
                 )
+            return pb2.PushResponse(
+                status_code=response.status_code,
+                response_text=response.text
+            )
         except Exception as e:
             return pb2.PushResponse(
                 status_code=500,

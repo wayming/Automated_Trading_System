@@ -7,6 +7,7 @@ import requests
 import aio_pika
 import logging
 import signal
+from typing import Optional, Tuple
 from functools          import partial
 from bs4                import BeautifulSoup
 from requests.adapters  import HTTPAdapter
@@ -73,8 +74,7 @@ class TradingViewAnalyser(NewsAnalyser):
             logger.error(f"Failed to decode JSON struct.\n{match.group(1)}\nError: {e}")
             return None
 
-    def analyse(self, html_path: str) -> dict:
-
+    def analyse(self, html_path: str) -> Tuple[Optional[dict], str]:
         article = self._extract_article(html_path)
         with open(self.prompt_path, 'r', encoding='utf-8') as f:
             base_prompt = f.read()
@@ -82,7 +82,7 @@ class TradingViewAnalyser(NewsAnalyser):
         prompt = f"{base_prompt}\n\n---\n\nTitle: {article['title']}\n\nContent:\n{article['content']}"
         response = self._send_to_llm(prompt)
 
-        result = self._extract_structured_response(response)
+        structured_result = self._extract_structured_response(response)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         logger.info("\n\n" + ">"*80 + "\n")
         logger.info(f"Timestamp: {timestamp}\n")
@@ -90,29 +90,48 @@ class TradingViewAnalyser(NewsAnalyser):
         logger.info(response)
         logger.info("\n" + ">"*80 + "\n\n")
 
-        return result
+        return structured_result, response.strip()
 
 async def handle_message(message: aio_pika.IncomingMessage, analyser, trade_policy, analysis_push_gateway):
     async with message.process(ignore_processed=True):
         try:
-            logger.info("[Analyser_Trading_View] new message received.")
+            logger.info("[Analyser_Trading_View] New message received.")
             body_text = message.body.decode()
 
-            logger.info("[Analyser_Trading_View] analyse")
-            result = analyser.analyse(body_text)
-            logger.info(json.dumps(result, indent=2, ensure_ascii=False))
-            if analysis_push_gateway is not None:
-                logger.info("[Analyser_Trading_View] push analyse results to AWS")
-                response = await analysis_push_gateway.Push(pb2.PushRequest(
-                    message=json.dumps(result, indent=2, ensure_ascii=False)))
-                logger.info(response.status_code, response.response_text)
+            logger.info("[Analyser_Trading_View] Analyzing message content...")
+            struct_result, raw_text = analyser.analyse(body_text)
 
-            logger.info("[Analyser_Trading_View] trade")
-            trade_policy.evaluate(result)
+            analysis_message=None
+            if struct_result is not None:
+                analysis_message = json.dumps(struct_result, indent=2, ensure_ascii=False)
+                logger.info("[Analyser_Trading_View] Structured analysis result:\n%s", analysis_message)
+                logger.info("[Analyser_Trading_View] Evaluating trade policy")
+                trade_policy.evaluate(struct_result)
+            else:
+                analysis_message = raw_text
+                logger.info("[Analyser_Trading_View] No structured result, using raw text.")
+
+            if analysis_push_gateway is not None:
+                logger.info("[Analyser_Trading_View] Pushing analysis results to AWS")
+                try:
+                    response = await asyncio.wait_for(
+                        analysis_push_gateway.Push(pb2.PushRequest(message=analysis_message)),
+                        timeout=10  # seconds
+                    )
+                    logger.info("[Analyser_Trading_View] PushResponse: status_code=%d, response_text=%s",
+                                response.status_code, response.response_text)
+                except asyncio.TimeoutError:
+                    logger.error("[Analyser_Trading_View] Push request timed out, skipping or retrying")
+                except Exception as grpc_err:
+                    logger.error(f"[Analyser_Trading_View] Failed to push to AWS: {grpc_err}")
 
         except Exception as e:
-            logger.error(f"Error processing message: {e}")
-            await message.reject(requeue=False)
+            logger.error(f"[Analyser_Trading_View] Error processing message: {e}", exc_info=True)
+            if not message.channel.is_closed:
+                await message.reject(requeue=False)
+            else:
+                logger.warning("[Analyser_Trading_View] Cannot reject message — channel already closed.")
+
 
 async def main():
     logger.info("[Analyser_Trading_View] Connecting to RabbitMQ")
