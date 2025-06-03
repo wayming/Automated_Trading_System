@@ -23,6 +23,7 @@ from openai             import OpenAI
 import grpc.aio
 from proto import analysis_push_gateway_pb2 as pb2
 from proto import analysis_push_gateway_pb2_grpc as pb2_grpc
+import uuid
 
 # Set up logging
 QUEUE_TV_ARTICLES = "tv_articles"
@@ -65,7 +66,7 @@ class TradingViewAnalyser(NewsAnalyser):
         pattern = r'^-{3,}\s*\n(.*?)\n-{3,}$'
         match = re.search(pattern, response_text, re.DOTALL | re.MULTILINE)
         if not match:
-            logger.info(f"No structure resposne found from llm response:\n{response_text}")
+            logger.info(f"No structured resposne found from llm response:\n{response_text}")
             return None
         
         try:
@@ -74,8 +75,8 @@ class TradingViewAnalyser(NewsAnalyser):
             logger.error(f"Failed to decode JSON struct.\n{match.group(1)}\nError: {e}")
             return None
 
-    def analyse(self, html_path: str) -> Tuple[Optional[dict], str]:
-        article = self._extract_article(html_path)
+    def analyse(self, html_text: str) -> Tuple[Optional[dict], str]:
+        article = self._extract_article(html_text)
         with open(self.prompt_path, 'r', encoding='utf-8') as f:
             base_prompt = f.read()
 
@@ -94,43 +95,56 @@ class TradingViewAnalyser(NewsAnalyser):
 
 async def handle_message(message: aio_pika.IncomingMessage, analyser, trade_policy, analysis_push_gateway):
     async with message.process(ignore_processed=True):
+        message_id=None
         try:
-            logger.info("[Analyser_Trading_View] New message received.")
+            message_id = str(uuid.uuid4())[:8]
+            logger.info(f"[Analyser_Trading_View][{message_id}] New message received.")
             body_text = message.body.decode()
 
-            logger.info("[Analyser_Trading_View] Analyzing message content...")
+            logger.info(f"[Analyser_Trading_View][{message_id}] Analyzing message content...")
             struct_result, raw_text = analyser.analyse(body_text)
 
             analysis_message=None
             if struct_result is not None:
                 analysis_message = json.dumps(struct_result, indent=2, ensure_ascii=False)
-                logger.info("[Analyser_Trading_View] Structured analysis result:\n%s", analysis_message)
-                logger.info("[Analyser_Trading_View] Evaluating trade policy")
+                logger.info(f"[Analyser_Trading_View][{message_id}] Structured analysis result:\n%s", analysis_message)
+                logger.info(f"[Analyser_Trading_View][{message_id}] Evaluating trade policy")
                 trade_policy.evaluate(struct_result)
             else:
                 analysis_message = raw_text
-                logger.info("[Analyser_Trading_View] No structured result, using raw text.")
+                logger.info(f"[Analyser_Trading_View][{message_id}] No structured result, using raw text.")
 
             if analysis_push_gateway is not None:
-                logger.info("[Analyser_Trading_View] Pushing analysis results to AWS")
+                start = time.time()
+                logger.info(f"[Analyser_Trading_View][{message_id}] Pushing analysis results to AWS at {time.ctime(start)}")
                 try:
                     response = await asyncio.wait_for(
                         analysis_push_gateway.Push(pb2.PushRequest(message=analysis_message)),
-                        timeout=10  # seconds
+                        timeout=600  # seconds
                     )
-                    logger.info("[Analyser_Trading_View] PushResponse: status_code=%d, response_text=%s",
+# async def fire_and_forget_push(analysis_push_gateway, message, message_id):
+#     try:
+#         await analysis_push_gateway.Push(pb2.PushRequest(message=message))
+#         logger.info(f"[Analyser_Trading_View][{message_id}] Push fired (response ignored).")
+#     except Exception as e:
+#         logger.error(f"[Analyser_Trading_View][{message_id}] Fire-and-forget Push failed: {e}")
+
+# # In your handler:
+# asyncio.create_task(fire_and_forget_push(analysis_push_gateway, analysis_message, message_id))
+
+                    logger.info(f"[Analyser_Trading_View][{message_id}] PushResponse: status_code=%d, response_text=%s",
                                 response.status_code, response.response_text)
                 except asyncio.TimeoutError:
-                    logger.error("[Analyser_Trading_View] Push request timed out, skipping or retrying")
+                    logger.error(f"[Analyser_Trading_View][{message_id}] Push request timed out after {time.time() - start:.2f} seconds, skipping or retrying")
                 except Exception as grpc_err:
-                    logger.error(f"[Analyser_Trading_View] Failed to push to AWS: {grpc_err}")
+                    logger.error(f"[Analyser_Trading_View][{message_id}] Failed to push to AWS: {grpc_err}")
 
         except Exception as e:
-            logger.error(f"[Analyser_Trading_View] Error processing message: {e}", exc_info=True)
+            logger.error(f"[Analyser_Trading_View][{message_id}] Error processing message: {e}", exc_info=True)
             if not message.channel.is_closed:
                 await message.reject(requeue=False)
             else:
-                logger.warning("[Analyser_Trading_View] Cannot reject message — channel already closed.")
+                logger.warning("[Analyser_Trading_View][{message_id}] Cannot reject message — channel already closed.")
 
 
 async def main():
