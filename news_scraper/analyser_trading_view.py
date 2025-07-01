@@ -27,6 +27,9 @@ import uuid
 
 # Set up logging
 QUEUE_TV_ARTICLES = "tv_articles"
+QUEUE_ANALYSIS_OUTPUT = "analysis_output"
+QUEUE_ARTICLES_TEXT = "articles_text"
+
 logger = new_logger("output/analyser_trading_view.log")
 
 class TradingViewAnalyser(NewsAnalyser):
@@ -75,7 +78,7 @@ class TradingViewAnalyser(NewsAnalyser):
             logger.error(f"Failed to decode JSON struct.\n{match.group(1)}\nError: {e}")
             return None
 
-    def analyse(self, html_text: str) -> Tuple[Optional[dict], str]:
+    def analyse(self, html_text: str) -> Tuple[str, Optional[dict], str]:
         article = self._extract_article(html_text)
         with open(self.prompt_path, 'r', encoding='utf-8') as f:
             base_prompt = f.read()
@@ -91,9 +94,22 @@ class TradingViewAnalyser(NewsAnalyser):
         logger.info(response)
         logger.info("\n" + ">"*80 + "\n\n")
 
-        return structured_result, response.strip()
+        return article, structured_result, response.strip()
+    
+async def push_to_queue(queue: aio_pika.Queue, message: str):
+    try:
+        await queue.channel.default_exchange.publish(
+            aio_pika.Message(body=message.encode()),
+            routing_key=queue.name
+        )
+        logger.info(f"Message pushed to queue {queue.name}: {message[:80]}...")
+    except Exception as e:
+        logger.error(f"Failed to push message to queue {queue.name}: {e}")
 
-async def handle_message(message: aio_pika.IncomingMessage, analyser, trade_policy, analysis_push_gateway):
+async def handle_message(
+        message: aio_pika.IncomingMessage,
+        analyser, trade_policy, analysis_push_gateway,
+        queue_articles_text, queue_analysis_output):
     async with message.process(ignore_processed=True):
         message_id=None
         try:
@@ -102,7 +118,7 @@ async def handle_message(message: aio_pika.IncomingMessage, analyser, trade_poli
             body_text = message.body.decode()
 
             logger.info(f"[Analyser_Trading_View][{message_id}] Analyzing message content...")
-            struct_result, raw_text = analyser.analyse(body_text)
+            article, struct_result, raw_text = analyser.analyse(body_text)
 
             analysis_message=None
             if struct_result is not None:
@@ -138,7 +154,9 @@ async def handle_message(message: aio_pika.IncomingMessage, analyser, trade_poli
                     logger.error(f"[Analyser_Trading_View][{message_id}] Push request timed out after {time.time() - start:.2f} seconds, skipping or retrying")
                 except Exception as grpc_err:
                     logger.error(f"[Analyser_Trading_View][{message_id}] Failed to push to AWS: {grpc_err}")
-
+            
+            await push_to_queue(queue_articles_text, article)
+            await push_to_queue(queue_analysis_output, analysis_message)
         except Exception as e:
             logger.error(f"[Analyser_Trading_View][{message_id}] Error processing message: {e}", exc_info=True)
             if not message.channel.is_closed:
@@ -150,6 +168,10 @@ async def handle_message(message: aio_pika.IncomingMessage, analyser, trade_poli
 async def main():
     logger.info("[Analyser_Trading_View] Connecting to RabbitMQ")
     connection, queue = await new_mq_conn(QUEUE_TV_ARTICLES)
+
+    # Declare response queues
+    queue_articles_text = await queue.channel.declare_queue(QUEUE_ARTICLES_TEXT, durable=True)
+    queue_analysis_output = await queue.channel.declare_queue(QUEUE_ANALYSIS_OUTPUT, durable=True)
 
     logger.info("[Analyser_Trading_View] Connecting to AWS Gateway")
     analysis_push_gateway = None
@@ -176,20 +198,22 @@ async def main():
     trade_policy = TradePolicy(executor=executor, logger=logger)
 
     logger.info("Setting up queue consumer")
-    await queue.consume(
+    queue.consume(
         partial(handle_message,
                 analyser=analyser,
                 trade_policy=trade_policy,
-                analysis_push_gateway=analysis_push_gateway))
+                analysis_push_gateway=analysis_push_gateway,
+                queue_articles_text=queue_articles_text,
+                queue_analysis_output=queue_analysis_output))
 
-    stop_event = asyncio.Event()
+    events = asyncio.Event()
     loop = asyncio.get_running_loop()
 
     for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, stop_event.set)
+        loop.add_signal_handler(sig, events.set)
 
     logger.info("Consumer started, waiting for messages")
-    await stop_event.wait()
+    await events.wait()
 
     logger.info("Shutting down")
     await connection.close()

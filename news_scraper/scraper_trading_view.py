@@ -40,8 +40,11 @@ class TradingViewScraper(NewsScraper):
     def _start_driver(self):
         options = uc.ChromeOptions()
         options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_argument("--headless=new")
-        return uc.Chrome(options=options, version_main=136)
+        # options.add_argument("--headless=new")
+
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-gpu")
+        return uc.Chrome(options=options)
 
     def _save_cookies(self):
         with open(self.cookies_path, "wb") as file:
@@ -59,40 +62,59 @@ class TradingViewScraper(NewsScraper):
     
     def _new_login(self) -> bool:
         self.driver = self._start_driver()
-        wait = WebDriverWait(self.driver, 20)
+        wait = WebDriverWait(self.driver, 200)
 
         self.driver.get("https://www.tradingview.com/#signin")
+
         try:
-            wait.until(EC.presence_of_element_located((By.XPATH, "//span[text()='Email']")))
-            self.driver.find_element(By.XPATH, "//span[text()='Email']").click()
+            print("Waiting for 'Email' button...")
+            email_button = wait.until(
+                EC.element_to_be_clickable((By.XPATH, "//button[@name='Email']"))
+            )
+            email_button.click()
+            print("Clicked 'Email' button.")
 
-            wait.until(EC.presence_of_element_located((By.NAME, "id_username")))
-            self.driver.find_element(By.NAME, "id_username").send_keys(self.username)
-            self.driver.find_element(By.NAME, "id_password").send_keys(self.password + "\n")
+            print("Waiting for username field...")
+            wait.until(EC.presence_of_element_located((By.ID, "id_username")))
 
+            self.driver.find_element(By.ID, "id_username").send_keys(self.username)
+            self.driver.find_element(By.ID, "id_password").send_keys(self.password)
+
+            # Wait robot screening
+            # Maually resolve the robot screening and then click the "Sign in" button.
+            # Somehow the program click the "Sign in" button causes login failure.
+            time.sleep(40)
+
+            # print("Waiting for sign-in button...")
+            # sign_in_button = wait.until(
+            #     EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Sign in']]"))
+            # )
+            # sign_in_button.click()
+
+            print("Waiting for dashboard...")
             wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".tv-lightweight-charts")))
-            input("Enter to continue")
+
             self._save_cookies()
             print("[+] Logged in successfully.")
             return True
+
         except Exception as e:
             print("[!] Login failed with exception:")
-            traceback.print_exc()  # shows full traceback
+            traceback.print_exc()
             self.driver.quit()
             return False
-
+        
     def login(self) -> bool:
         wait = WebDriverWait(self.driver, 20)
 
         if os.path.exists(self.cookies_path):
             self.driver = self._start_driver()
-            self.driver.get("https://www.tradingview.com")
+            self.driver.get("https://www.tradingview.com/news-flow/")
             try:
                 self._load_cookies()
                 self.driver.refresh()
-
-                WebDriverWait(self.driver, 10).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, ".tv-lightweight-charts"))
+                WebDriverWait(self.driver, 20).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, ".filtersBar-YXVzia8q"))
                 )
                 print("[+] Logged in using saved cookies.")
 
@@ -206,8 +228,8 @@ def main():
         mq_conn = rabbit_mq_connect()
 
     scraper = scraper = TradingViewScraper(
-            username="myuser",
-            password="mypass",
+            username=USERNAME,
+            password=PASSWORD,
             queue_conn=mq_conn,
             queue_name=QUEUE_TV_ARTICLES
     )
