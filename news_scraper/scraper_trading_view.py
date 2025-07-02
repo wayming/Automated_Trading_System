@@ -140,12 +140,12 @@ class TradingViewScraper(NewsScraper):
 
             # wait page to load
             WebDriverWait(self.driver, 15).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "card-HY0D0owe"))
+                EC.presence_of_element_located((By.CLASS_NAME, "card-DmjQR0Aa"))
             )
 
-            new_items = self.driver.find_elements(By.CSS_SELECTOR, ".card-HY0D0owe")
+            new_items = self.driver.find_elements(By.CSS_SELECTOR, ".card-DmjQR0Aa")
             links = [el.get_attribute("href") for el in new_items if el.get_attribute("href")]
-            titles = [el.find_element(By.CSS_SELECTOR, ".title-HY0D0owe").text for el in new_items]
+            titles = [el.find_element(By.CSS_SELECTOR, ".title-e7vDzPX4").text for el in new_items]
             
             new_articles_found = 0
             for link, title in zip(links[:limit], titles[:limit]):
