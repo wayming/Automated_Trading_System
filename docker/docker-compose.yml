@@ -145,6 +145,48 @@ services:
     networks:
       - scraper-network
 
+  news_store:
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.aws.news.news_store
+    volumes:
+      - ../output:/app/output  # Mount volume
+    networks:
+      - scraper-network
+    depends_on:
+      rabbitmq:
+        condition: service_started
+      weaviate:
+        condition: service_started
+
+  # Weaviate service for vector storage
+  weaviate:
+    command:
+    - --host
+    - 0.0.0.0
+    - --port
+    - '50054'
+    - --scheme
+    - http
+    image: cr.weaviate.io/semitechnologies/weaviate:1.30.0
+    ports:
+    - 50054:50054
+    - 50055:50055
+    volumes:
+    - ./weaviate_data:/var/lib/weaviate
+    restart: on-failure:0
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      ENABLE_MODULES: ''
+      CLUSTER_HOSTNAME: 'node1'
+      # gRPC configuration
+      GRPC_PORT: "50055"
+    networks:
+      - scraper-network
+
 networks:
   scraper-network:
     driver: bridge
