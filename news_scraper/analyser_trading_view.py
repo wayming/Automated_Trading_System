@@ -25,44 +25,15 @@ from proto import analysis_push_gateway_pb2 as pb2
 from proto import analysis_push_gateway_pb2_grpc as pb2_grpc
 import uuid
 
+from news_model.processed_article import ProcessedArticle
+
+# This module is responsible for analyzing trading view articles using DeepSeek's LLM.
+
 # source
 QUEUE_TV_ARTICLES = "tv_articles"
 
 # destination
-# Message structure:
-# {
-#     "uuid": "unique-identifier",
-#     "title": "Article Title",
-#     "content": "Full article content",
-#     "timestamp": "2023-10-01 12:00:00"，
-#     "structured_result": {
-#       "stock_code": "股票代码",
-#       "stock_name": "股票名称",
-#       "analysis": {
-#           "short_term": {
-#           "score": ”短期评分“,
-#           "driver": "驱动因素",
-#           "risk": "风险"
-#           },
-#           "mid_term": {
-#           "score": ”中期评分“,
-#           "driver": "驱动因素",
-#           "risk": "风险"
-#           },
-#           "long_term": {
-#           "score": ”长期评分“,
-#           "driver": "驱动因素",
-#           "risk": "风险"
-#           }
-#       },
-#       "alerts": [
-#           "风险预警",
-#           "风险预警"
-#       ]
-#       }
-#     },
-# }
-QUEUE_ANALYSIS_OUTPUT = "analysis_output"
+QUEUE_PROCESSED_ARTICLES = "processed_articles"
 
 logger = new_logger("output/analyser_trading_view.log")
 
@@ -143,7 +114,7 @@ async def push_to_queue(queue: aio_pika.Queue, message: str):
 async def handle_message(
         message: aio_pika.IncomingMessage,
         analyser, trade_policy, analysis_push_gateway,
-        queue_analysis_output):
+        queue_processed_articles):
     async with message.process(ignore_processed=True):
         message_id=None
         try:
@@ -188,9 +159,16 @@ async def handle_message(
                     logger.error(f"[Analyser_Trading_View][{message_id}] Push request timed out after {time.time() - start:.2f} seconds, skipping or retrying")
                 except Exception as grpc_err:
                     logger.error(f"[Analyser_Trading_View][{message_id}] Failed to push to AWS: {grpc_err}")
-                    
+
             if struct_result is not None:
-                await push_to_queue(queue_analysis_output, analysis_message)
+                await push_to_queue(queue_processed_articles, ProcessedArticle{
+                    "uuid": message_id
+                    "title": article['title'],
+                    "content": article['content'],
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "analysis_results": analysis_message
+                }.json())
+
         except Exception as e:
             logger.error(f"[Analyser_Trading_View][{message_id}] Error processing message: {e}", exc_info=True)
             if not message.channel.is_closed:
@@ -204,7 +182,7 @@ async def main():
     connection, queue = await new_mq_conn(QUEUE_TV_ARTICLES)
 
     # Declare response queues
-    queue_analysis_output = await queue.channel.declare_queue(QUEUE_ANALYSIS_OUTPUT, durable=True)
+    queue_processed_articles = await queue.channel.declare_queue(QUEUE_PROCESSED_ARTICLES, durable=True)
 
     logger.info("[Analyser_Trading_View] Connecting to AWS Gateway")
     analysis_push_gateway = None
@@ -236,7 +214,7 @@ async def main():
                 analyser=analyser,
                 trade_policy=trade_policy,
                 analysis_push_gateway=analysis_push_gateway,
-                queue_analysis_output=queue_analysis_output))
+                queue_processed_articles=queue_processed_articles))
 
     events = asyncio.Event()
     loop = asyncio.get_running_loop()

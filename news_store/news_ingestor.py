@@ -1,12 +1,14 @@
 from .mq_consumer import RabbitMQConsumer
 from .weaviate_writer import WeaviateClient
 
-QUEUE_ANALYSIS_OUTPUT = "analysis_output"
+from news_model.processed_article import ProcessedArticle
+# This module is responsible for ingesting news articles from RabbitMQ and storing them in Weaviate.
+QUEUE_PROCESSED_ARTICLES = "processed_articles"
 
 class NewsIngestor:
-    def __init__(self, mq_host, queue_name, weaviate_config):
+    def __init__(self, mq_host, queue_name, wv_config):
         self.consumer = RabbitMQConsumer(mq_host, queue_name)
-        self.weaviate = WeaviateClient(**weaviate_config)
+        self.weaviate = WeaviateClient(wv_config["url"], wv_config["class_name"])
 
     def start(self):
         print("🟢 NewsIngestor started. Waiting for messages...")
@@ -16,24 +18,23 @@ class NewsIngestor:
     def process_message(self, message):
         print(f"📩 Received message: {message}")
         try:
-            news_data = self.parse_news(message)
-            self.weaviate.store_news(news_data)
+            processed = self.parse_news(message)
+            self.weaviate.store_news(processed)
             print("✅ Stored in Weaviate")
         except Exception as e:
             print(f"❌ Error processing message: {e}")
 
     def parse_news(self, raw_message):
-        # 假设消息是 JSON 格式
-        import json
-        return json.loads(raw_message)
-
+        data = raw_message.decode()
+        return ProcessedArticle.parse_raw(data).dict()
+    
 def main():
     weaviate_config = {
-        "url": "http://localhost:50054",
-        "class_name": "NewsArticle"
+        "url": "http://weaviate:50054",
+        "class_name": "ProcessedArticle",
     }
 
-    ingestor = NewsIngestor("rabbitmq", QUEUE_ANALYSIS_OUTPUT, weaviate_config)
+    ingestor = NewsIngestor("rabbitmq", QUEUE_PROCESSED_ARTICLES, weaviate_config)
     ingestor.start()
 
 if __name__ == "__main__":

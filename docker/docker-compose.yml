@@ -148,7 +148,7 @@ services:
   news_store:
     build:
       context: ../  # Set build context to project root
-      dockerfile: docker/Dockerfile.aws.news.news_store
+      dockerfile: docker/Dockerfile.news.store
     volumes:
       - ../output:/app/output  # Mount volume
     networks:

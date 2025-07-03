@@ -1,10 +1,6 @@
 # Use official Python base image
 FROM python:3.11-slim
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
 # Set work directory inside container
 WORKDIR /app
 
@@ -22,6 +18,7 @@ RUN useradd -m -u 1000 appuser
 
 # Copy the Python script into the container
 COPY news_store /app/news_store
+COPY news_model /app/news_model
 RUN chown -R appuser:appuser /app
 
 # Switch to the user
@@ -29,6 +26,9 @@ USER appuser
 ENV HOME=/app
 WORKDIR /app
 
+# Set environment variable to prevent Python from writing pyc files
+ENV PYTHONUNBUFFERED 1
+ENV PYTHONPATH=/app/proto:/app/news_scraper:/app/news_model
 
 # Set default command
 CMD ["python", "-m", "news_store.news_ingestor"]

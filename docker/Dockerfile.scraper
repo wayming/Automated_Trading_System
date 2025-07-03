@@ -57,6 +57,7 @@ RUN useradd -m -u 1000 appuser
 
 # Copy the Python script into the container
 COPY news_scraper /app/news_scraper
+COPY news_model /app/news_model
 RUN chown -R appuser:appuser /app
 
 RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
@@ -68,7 +69,7 @@ WORKDIR /app
 
 # Set environment variable to prevent Python from writing pyc files
 ENV PYTHONUNBUFFERED 1
-ENV PYTHONPATH=/app/proto:/app/news_scraper
+ENV PYTHONPATH=/app/proto:/app/news_scraper:/ap/news_model
 
 RUN google-chrome-stable --version
 
