@@ -1,3 +1,4 @@
+import os
 from .mq_consumer import RabbitMQConsumer
 from .weaviate_writer import WeaviateClient
 
@@ -8,7 +9,7 @@ QUEUE_PROCESSED_ARTICLES = "processed_articles"
 class NewsIngestor:
     def __init__(self, mq_host, queue_name, wv_config):
         self.consumer = RabbitMQConsumer(mq_host, queue_name)
-        self.weaviate = WeaviateClient(wv_config["url"], wv_config["class_name"])
+        self.weaviate = WeaviateClient(wv_config)
 
     def start(self):
         print("🟢 NewsIngestor started. Waiting for messages...")
@@ -30,7 +31,9 @@ class NewsIngestor:
     
 def main():
     weaviate_config = {
-        "url": "http://weaviate:50054",
+        "host": "weaviate",
+        "http_port": os.getenv("WEAVIATE_HTTP_PORT", "8080"),
+        "grpc_port": os.getenv("WEAVIATE_GRPC_PORT", "50051"),
         "class_name": "ProcessedArticle",
     }
 
