@@ -39,7 +39,5 @@ class WeaviateClient:
 
 
     def store_news(self, news_data):
-        self.client.data_object.create(
-            data_object=news_data,
-            class_name=self.class_name
-        )
+        collection = self.client.collections.get(self.class_name)
+        collection.data.insert(news_data)

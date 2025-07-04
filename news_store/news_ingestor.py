@@ -1,6 +1,7 @@
 import os
 from .mq_consumer import RabbitMQConsumer
 from .weaviate_writer import WeaviateClient
+import json
 
 from news_model.processed_article import ProcessedArticle
 # This module is responsible for ingesting news articles from RabbitMQ and storing them in Weaviate.
@@ -26,9 +27,9 @@ class NewsIngestor:
             print(f"❌ Error processing message: {e}")
 
     def parse_news(self, raw_message):
-        data = raw_message.decode()
-        return ProcessedArticle.parse_raw(data).dict()
-    
+        data = json.loads(raw_message)
+        article = ProcessedArticle(**data)
+        return article.__dict__ 
 def main():
     weaviate_config = {
         "host": "weaviate",
