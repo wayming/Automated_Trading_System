@@ -19,7 +19,9 @@ from .executor_proxy    import TradeExecutor, MockTradeExecutorProxy
 from common             import new_logger, new_mq_conn, new_aws_conn
 from trade_policy       import TradePolicy
 from openai             import OpenAI
-
+from dataclasses        import asdict
+from datetime           import datetime, timezone
+d  
 import grpc.aio
 from proto import analysis_push_gateway_pb2 as pb2
 from proto import analysis_push_gateway_pb2_grpc as pb2_grpc
@@ -161,13 +163,15 @@ async def handle_message(
                     logger.error(f"[Analyser_Trading_View][{message_id}] Failed to push to AWS: {grpc_err}")
 
             if struct_result is not None:
-                await push_to_queue(queue_processed_articles, ProcessedArticle{
-                    "uuid": message_id
-                    "title": article['title'],
-                    "content": article['content'],
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "analysis_results": analysis_message
-                }.json())
+                logger.info(f"[Analyser_Trading_View][{message_id}] Pushing processed article to queue {QUEUE_PROCESSED_ARTICLES}")
+                article_obj = ProcessedArticle(
+                    uuid=message_id,
+                    title=article['title'],
+                    content=article['content'],
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    analysis_results=analysis_message
+                )
+                await push_to_queue(queue_processed_articles, json.dumps(asdict(article_obj)))
 
         except Exception as e:
             logger.error(f"[Analyser_Trading_View][{message_id}] Error processing message: {e}", exc_info=True)
@@ -209,7 +213,7 @@ async def main():
     trade_policy = TradePolicy(executor=executor, logger=logger)
 
     logger.info("Setting up queue consumer")
-    queue.consume(
+    await queue.consume(
         partial(handle_message,
                 analyser=analyser,
                 trade_policy=trade_policy,
