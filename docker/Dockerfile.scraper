@@ -1,9 +1,6 @@
 # Use a Python base image
 FROM python:3.9-slim
 
-# Set environment variable to prevent Python from writing pyc files
-ENV PYTHONUNBUFFERED 1
-
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     wget \
@@ -60,6 +57,7 @@ RUN useradd -m -u 1000 appuser
 
 # Copy the Python script into the container
 COPY news_scraper /app/news_scraper
+COPY news_model /app/news_model
 RUN chown -R appuser:appuser /app
 
 RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
@@ -69,6 +67,14 @@ USER appuser
 ENV HOME=/app
 WORKDIR /app
 
-# Run the Python script when the container starts
+# Set environment variable to prevent Python from writing pyc files
+ENV PYTHONUNBUFFERED 1
+ENV PYTHONPATH=/app/proto:/app/news_scraper:/ap/news_model
+
+RUN google-chrome-stable --version
+
+# Run scraper with xvfb to handle GUI operations
 # CMD ["xvfb-run", "-a", "python", "-m", "news_scraper.scraper_investing"]
+
+# Default command to be overridden by the docker-compose file
 CMD ["tail", "-f", "/dev/null"]

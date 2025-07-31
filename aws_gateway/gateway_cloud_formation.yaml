@@ -1,0 +1,529 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: WebSocket Chat System with CloudWatch logging, DynamoDB connection tracking, and CloudFront + ACM SSL for frontend HTTPS access
+
+Parameters:
+  StageName:
+    Type: String
+    Default: prod
+    Description: Deployment stage (e.g. prod, dev)
+
+Resources:
+
+  WebSocketConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: WebSocketConnections
+      AttributeDefinitions:
+        - AttributeName: connectionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: connectionId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  AnalysisMessagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: AnalysisMessages
+      AttributeDefinitions:
+        - AttributeName: partitionKey
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+      KeySchema:
+        - AttributeName: partitionKey
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      
+  WebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: WebSocketChatApi
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: $request.body.action
+
+  WebSocketConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $connect
+      AuthorizationType: NONE
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref WebSocketConnectIntegration
+
+  WebSocketDisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $disconnect
+      AuthorizationType: NONE
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref WebSocketDisconnectIntegration
+
+  WebSocketSendMessageRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: sendmessage
+      AuthorizationType: NONE
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref WebSocketSendMessageIntegration
+
+  WebSocketConnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HandleConnectFunction.Arn}/invocations
+      PayloadFormatVersion: '1.0'
+
+  WebSocketDisconnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HandleDisconnectFunction.Arn}/invocations
+      PayloadFormatVersion: '1.0'
+
+  WebSocketSendMessageIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HandleSendMessageFunction.Arn}/invocations
+      PayloadFormatVersion: '1.0'
+
+  # Permission for API Gateway to invoke Lambda
+  HandleConnectFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref HandleConnectFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/$connect
+
+  HandleDisconnectFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref HandleDisconnectFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/$disconnect
+
+  HandleSendMessageFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref HandleSendMessageFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/POST/send
+
+  PostConnectWorkerInvokePermission:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: AllowAsyncInvokeWorker
+      Roles:
+        - !Ref LambdaExecutionRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: lambda:InvokeFunction
+            Resource: !GetAtt PostConnectWorkerFunction.Arn
+
+  HandleConnectFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: HandleConnectFunction
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          CONNECTIONS_TABLE: !Ref WebSocketConnectionsTable
+          MESSAGES_TABLE: !Ref AnalysisMessagesTable
+          API_GATEWAY_ID: !Ref WebSocketApi
+          CURR_AWS_REGION: !Ref 'AWS::Region'
+          STAGE: !Ref StageName
+          ASYNC_CONNECT_WORKER: !Ref PostConnectWorkerFunction
+      Code:
+        ZipFile: |
+          import boto3, os, json
+          from boto3.dynamodb.conditions import Key
+
+          ddb = boto3.resource('dynamodb')
+          lambda_client = boto3.client('lambda')
+          connections_table = ddb.Table(os.environ['CONNECTIONS_TABLE'])
+
+          def lambda_handler(event, context):
+              connection_id = event['requestContext']['connectionId']
+              print(f"New connection: {connection_id}")
+              try:
+                  connections_table.put_item(Item={'connectionId': connection_id})
+              except Exception as e:
+                  print(f"Failed to save connection: {e}")
+                  return {'statusCode': 500, 'body': 'DB Error'}
+
+              try:
+                  lambda_client.invoke(
+                      FunctionName=os.environ['ASYNC_CONNECT_WORKER'],
+                      InvocationType='Event',
+                      Payload=json.dumps({'connectionId': connection_id})
+                  )
+              except Exception as e:
+                  print(f"Failed to invoke async worker: {e}")
+              return {'statusCode': 200}
+
+  HandleDisconnectFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: HandleDisconnectFunction
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref WebSocketConnectionsTable
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          dynamodb = boto3.resource('dynamodb')
+          table = dynamodb.Table(os.environ['TABLE_NAME'])
+          def lambda_handler(event, context):
+              connectionId = event['requestContext']['connectionId']
+              table.delete_item(Key={'connectionId': connectionId})
+              return {'statusCode': 200}
+
+  PostConnectWorkerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: PostConnectWorkerFunction
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          MESSAGES_TABLE: !Ref AnalysisMessagesTable
+          API_GATEWAY_ID: !Ref WebSocketApi
+          CURR_AWS_REGION: !Ref 'AWS::Region'
+          STAGE: !Ref StageName
+      Code:
+        ZipFile: |
+          import boto3, os, json, time
+          from boto3.dynamodb.conditions import Key
+
+          def lambda_handler(event, context):
+              connection_id = event.get('connectionId')
+              print(f"Async PostConnectWorker: {connection_id}")
+  
+              ddb = boto3.resource('dynamodb')
+              msg_table = ddb.Table(os.environ['MESSAGES_TABLE'])
+
+              gateway_url = f"https://{os.environ['API_GATEWAY_ID']}.execute-api.{os.environ['CURR_AWS_REGION']}.amazonaws.com/{os.environ['STAGE']}"
+              apigw = boto3.client('apigatewaymanagementapi', endpoint_url=gateway_url)
+
+              try:
+                  response = msg_table.query(
+                      KeyConditionExpression=Key('partitionKey').eq('global'),
+                      ScanIndexForward=False,
+                      Limit=10
+                  )
+                  messages = response.get('Items', [])[::-1]
+                  for msg in messages:
+                      apigw.post_to_connection(
+                          ConnectionId=connection_id,
+                          Data=msg['message'].encode('utf-8')
+                      )
+              except apigw.exceptions.GoneException:
+                  print(f"Connection {connection_id} is gone.")
+              except Exception as e:
+                  print(f"Error sending: {e}")
+
+
+  HandleSendMessageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: HandleSendMessageFunction
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          CONNECTIONS_TABLE: !Ref WebSocketConnectionsTable
+          MESSAGES_TABLE: !Ref AnalysisMessagesTable
+          API_GATEWAY_ID: !Ref WebSocketApi
+          CURR_AWS_REGION: !Ref 'AWS::Region'
+          STAGE: !Ref StageName
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          import json
+          import time
+          from boto3.dynamodb.conditions import Key
+
+          ddb = boto3.resource('dynamodb')
+          conn_table = ddb.Table(os.environ['CONNECTIONS_TABLE'])
+          msg_table = ddb.Table(os.environ['MESSAGES_TABLE'])
+
+          gateway_url = f"https://{os.environ['API_GATEWAY_ID']}.execute-api.{os.environ['CURR_AWS_REGION']}.amazonaws.com/{os.environ['STAGE']}"
+          apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=gateway_url)
+          print(f"API Gateway endpoint URL: {gateway_url}")
+
+          def lambda_handler(event, context):
+              try:
+                  # Read body as raw string
+                  message = event.get('body', '')
+                  if not message:
+                      return {'statusCode': 400, 'body': 'Empty message body'}
+              except Exception as e:
+                  return {'statusCode': 400, 'body': f"Error reading message: {str(e)}"}
+
+              timestamp = int(time.time() * 1000)
+              msg_item = {
+                  'partitionKey': 'global',
+                  'timestamp': timestamp,
+                  'message': message  # Store as-is
+              }
+
+              print("Storing message:", msg_item)
+
+              try:
+                  msg_table.put_item(Item=msg_item)
+              except Exception as e:
+                  print("Error writing to DynamoDB:", str(e))
+                  return {'statusCode': 500, 'body': 'Failed to write message'}
+                  
+              # Trim to latest 10 messages
+              messages = msg_table.query(
+                  KeyConditionExpression=Key('partitionKey').eq('global'),
+                  ScanIndexForward=True  # oldest first
+              )['Items']
+
+              if len(messages) > 10:
+                  for old in messages[:-10]:
+                      msg_table.delete_item(
+                          Key={
+                              'partitionKey': 'global',
+                              'timestamp': old['timestamp']
+                          }
+                      )
+
+              # Send to all connections
+              connections = conn_table.scan(ProjectionExpression='connectionId')['Items']
+              for connection in connections:
+                  try:
+                      print(f"Send message to {connection['connectionId']}")
+                      apigw_client.post_to_connection(
+                          ConnectionId=connection['connectionId'],
+                          Data=message.encode('utf-8')
+                      )
+                  except apigw_client.exceptions.GoneException:
+                      conn_table.delete_item(Key={'connectionId': connection['connectionId']})
+
+              return {'statusCode': 200}
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: WebSocketLambdaExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [lambda.amazonaws.com]
+            Action: [sts:AssumeRole]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: WebSocketLambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [dynamodb:PutItem, dynamodb:DeleteItem, dynamodb:Scan]
+                Resource: !GetAtt WebSocketConnectionsTable.Arn
+              - Effect: Allow
+                Action: [execute-api:ManageConnections]
+                Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*/POST/@connections/*
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                  - dynamodb:DeleteItem
+                Resource: !GetAtt AnalysisMessagesTable.Arn
+
+  ConnectFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: /aws/lambda/HandleConnectFunction
+      RetentionInDays: 14
+
+  DisconnectFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: /aws/lambda/HandleDisconnectFunction
+      RetentionInDays: 14
+
+  SendMessageFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: /aws/lambda/HandleSendMessageFunction
+      RetentionInDays: 14
+
+  PostConnectWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/PostConnectWorkerFunction
+      RetentionInDays: 14
+
+  WebSocketApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/${WebSocketApi}
+      RetentionInDays: 14
+
+  ApiGatewayCloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ApiGatewayWebSocketLoggingRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ApiGatewayLoggingPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+  Deployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+      - WebSocketConnectRoute
+      - WebSocketDisconnectRoute
+      - WebSocketSendMessageRoute
+    Properties:
+      ApiId: !Ref WebSocketApi
+
+  Stage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref WebSocketApi
+      DeploymentId: !Ref Deployment
+      StageName: !Ref StageName
+      AutoDeploy: true
+      AccessLogSettings:
+        DestinationArn: !GetAtt WebSocketApiLogGroup.Arn
+        Format: '{"requestId":"$context.requestId","routeKey":"$context.routeKey","status":"$context.status"}'
+      DefaultRouteSettings:
+        DataTraceEnabled: true
+        LoggingLevel: INFO
+      Description: WebSocket Chat Stage
+      Tags:
+        Environment: !Ref StageName
+
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: HttpPushApi
+      ProtocolType: HTTP
+
+  HttpIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HandleSendMessageFunction.Arn}/invocations
+      PayloadFormatVersion: '2.0'
+
+  HttpRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /send"
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref HttpIntegration
+
+  HttpApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/HttpPushApi-${StageName}
+      RetentionInDays: 14
+
+  HttpApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: !Ref StageName
+      AutoDeploy: true
+      AccessLogSettings:
+        DestinationArn: !GetAtt HttpApiLogGroup.Arn
+        Format: '{"requestId":"$context.requestId","routeKey":"$context.routeKey","status":"$context.status"}'
+
+        
+  # CloudFront distribution (default domain + HTTPS)
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: QtsS3Origin
+            DomainName: qts-front.s3.amazonaws.com
+            S3OriginConfig: {}
+        DefaultCacheBehavior:
+          TargetOriginId: QtsS3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true  # Uses *.cloudfront.net HTTPS
+        PriceClass: PriceClass_100  # Lower cost tier (US, Canada, Europe)
+
+Outputs:
+  HttpApiEndpoint:
+    Description: "HTTP API Endpoint URL"
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/send"
+
+  WebSocketApiEndpoint:
+    Description: "WebSocket API Endpoint URL"
+    Value: !Sub "wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
+
+  CloudFrontDistributionDomainName:
+    Description: "CloudFront domain name for frontend"
+    Value: !GetAtt CloudFrontDistribution.DomainName

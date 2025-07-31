@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package analysispush;
+
+service AnalysisPushGateway {
+  rpc Push (PushRequest) returns (PushResponse);
+}
+
+message PushRequest {
+  string message = 1;  // 可为 JSON、文本、Base64 等
+}
+
+message PushResponse {
+  int32 status_code = 1;
+  string response_text = 2;
+}

@@ -7,19 +7,15 @@ services:
     container_name: python-scraper-iv
     volumes:
       - ../output:/app/output  # Mount the current directory to /app in the container
+      - /tmp/.X11-unix:/tmp/.X11-unix # Show chrome browser
     environment:
-      - DISPLAY=:99  # If running headlessly or using Xvfb
+      - DISPLAY=$DISPLAY  # Show chrome browser
     env_file:
       - .env
     networks:
       - scraper-network
     restart: always  # Restart container if it crashes
-    command: >
-      bash -c "
-        Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp &
-        export DISPLAY=:99
-        python -m news_scraper.scraper_investing
-      "
+    command: python -m news_scraper.scraper_investing
     depends_on:
       rabbitmq:
         condition: service_healthy # RabbitMQ begin to accept connections
@@ -31,19 +27,15 @@ services:
     container_name: python-scraper-tv
     volumes:
       - ../output:/app/output  # Mount the current directory to /app in the container
+      - /tmp/.X11-unix:/tmp/.X11-unix # Show chrome browser
     environment:
-      - DISPLAY=:99  # If running headlessly or using Xvfb
+      - DISPLAY=$DISPLAY  # Show chrome browser
     env_file:
       - .env
     networks:
       - scraper-network
     restart: always  # Restart container if it crashes
-    command: >
-      bash -c "
-        Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp &
-        export DISPLAY=:99
-        python -m news_scraper.scraper_trading_view
-      "
+    command: python -m news_scraper.scraper_trading_view
     depends_on:
       rabbitmq:
         condition: service_healthy # RabbitMQ begin to accept connections
@@ -142,50 +134,6 @@ services:
       - "50053:50053"
     volumes:
       - ../output:/app/output  # Mount volume
-    networks:
-      - scraper-network
-
-  news_store:
-    build:
-      context: ../  # Set build context to project root
-      dockerfile: docker/Dockerfile.news.store
-    volumes:
-      - ../output:/app/output  # Mount volume
-    environment:
-      WEAVIATE_HTTP_PORT: '8080'
-      WEAVIATE_GRPC_PORT: '50051'
-    networks:
-      - scraper-network
-    depends_on:
-      rabbitmq:
-        condition: service_started
-      weaviate:
-        condition: service_started
-
-  # Weaviate service for vector storage
-  weaviate:
-    command:
-    - --host
-    - 0.0.0.0
-    - --port
-    - '8080'
-    - --scheme
-    - http
-    image: cr.weaviate.io/semitechnologies/weaviate:1.30.0
-    ports:
-    - 50054:8080
-    - 50055:50051
-    volumes:
-    - ./weaviate_data:/var/lib/weaviate
-    restart: on-failure:0
-    environment:
-      QUERY_DEFAULTS_LIMIT: 25
-      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
-      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
-      DEFAULT_VECTORIZER_MODULE: 'none'
-      ENABLE_MODULES: ''
-      ENABLE_GRPC_SERVER: 'true'
-      CLUSTER_HOSTNAME: 'node1'
     networks:
       - scraper-network
 

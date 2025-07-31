@@ -30,15 +30,20 @@ class TradingViewScraper(NewsScraper):
         self.driver = None
         self.article_cache = LRUCache(20)
         self.queue_name = queue_name
+        self.output_dir = "output/trading_view"
+        os.makedirs(self.output_dir, exist_ok=True)
 
         if queue_conn != None:
             self.queue_channel = queue_conn.channel()
-            self.queue_channel.queue_declare(queue=queue_name)
+            self.queue_channel.queue_declare(queue=queue_name, durable=True)
 
     def _start_driver(self):
         options = uc.ChromeOptions()
         options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_argument("--headless=new")
+        # options.add_argument("--headless=new")
+
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-gpu")
         return uc.Chrome(options=options)
 
     def _save_cookies(self):
@@ -57,40 +62,59 @@ class TradingViewScraper(NewsScraper):
     
     def _new_login(self) -> bool:
         self.driver = self._start_driver()
-        wait = WebDriverWait(self.driver, 20)
+        wait = WebDriverWait(self.driver, 200)
 
         self.driver.get("https://www.tradingview.com/#signin")
+
         try:
-            wait.until(EC.presence_of_element_located((By.XPATH, "//span[text()='Email']")))
-            self.driver.find_element(By.XPATH, "//span[text()='Email']").click()
+            print("Waiting for 'Email' button...")
+            email_button = wait.until(
+                EC.element_to_be_clickable((By.XPATH, "//button[@name='Email']"))
+            )
+            email_button.click()
+            print("Clicked 'Email' button.")
 
-            wait.until(EC.presence_of_element_located((By.NAME, "id_username")))
-            self.driver.find_element(By.NAME, "id_username").send_keys(self.username)
-            self.driver.find_element(By.NAME, "id_password").send_keys(self.password + "\n")
+            print("Waiting for username field...")
+            wait.until(EC.presence_of_element_located((By.ID, "id_username")))
 
+            self.driver.find_element(By.ID, "id_username").send_keys(self.username)
+            self.driver.find_element(By.ID, "id_password").send_keys(self.password)
+
+            # Wait robot screening
+            # Maually resolve the robot screening and then click the "Sign in" button.
+            # Somehow the program click the "Sign in" button causes login failure.
+            time.sleep(40)
+
+            # print("Waiting for sign-in button...")
+            # sign_in_button = wait.until(
+            #     EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Sign in']]"))
+            # )
+            # sign_in_button.click()
+
+            print("Waiting for dashboard...")
             wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".tv-lightweight-charts")))
-            input("Enter to continue")
+
             self._save_cookies()
             print("[+] Logged in successfully.")
             return True
+
         except Exception as e:
             print("[!] Login failed with exception:")
-            traceback.print_exc()  # shows full traceback
+            traceback.print_exc()
             self.driver.quit()
             return False
-
+        
     def login(self) -> bool:
         wait = WebDriverWait(self.driver, 20)
 
         if os.path.exists(self.cookies_path):
             self.driver = self._start_driver()
-            self.driver.get("https://www.tradingview.com")
+            self.driver.get("https://www.tradingview.com/news-flow/")
             try:
                 self._load_cookies()
                 self.driver.refresh()
-
-                WebDriverWait(self.driver, 10).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, ".tv-lightweight-charts"))
+                WebDriverWait(self.driver, 20).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, ".filtersBar-YXVzia8q"))
                 )
                 print("[+] Logged in using saved cookies.")
 
@@ -116,12 +140,12 @@ class TradingViewScraper(NewsScraper):
 
             # wait page to load
             WebDriverWait(self.driver, 15).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "card-HY0D0owe"))
+                EC.presence_of_element_located((By.CLASS_NAME, "card-DmjQR0Aa"))
             )
 
-            new_items = self.driver.find_elements(By.CSS_SELECTOR, ".card-HY0D0owe")
+            new_items = self.driver.find_elements(By.CSS_SELECTOR, ".card-DmjQR0Aa")
             links = [el.get_attribute("href") for el in new_items if el.get_attribute("href")]
-            titles = [el.find_element(By.CSS_SELECTOR, ".title-HY0D0owe").text for el in new_items]
+            titles = [el.find_element(By.CSS_SELECTOR, ".title-e7vDzPX4").text for el in new_items]
             
             new_articles_found = 0
             for link, title in zip(links[:limit], titles[:limit]):
@@ -140,7 +164,7 @@ class TradingViewScraper(NewsScraper):
 
                     # Save page HTML to file
                     fname = self._slugify(title)
-                    html_path = f"output/{fname}.html"
+                    html_path = f"{self.output_dir}/{fname}.html"
                     html_content = self.driver.page_source
                     
                     # Save to file 
@@ -155,7 +179,9 @@ class TradingViewScraper(NewsScraper):
                             routing_key=self.queue_name,
                             body=html_content.encode('utf-8')
                         )
-                    print(f"Sent article to queue: {fname}")
+                        print(f"Sent article to queue: {fname}")
+                    else:
+                        print(f"No queue")
 
                     # Add to cache
                     self.article_cache.put(link)
@@ -202,11 +228,11 @@ def main():
         mq_conn = rabbit_mq_connect()
 
     scraper = scraper = TradingViewScraper(
-            username="myuser",
-            password="mypass",
+            username=USERNAME,
+            password=PASSWORD,
             queue_conn=mq_conn,
             queue_name=QUEUE_TV_ARTICLES
-)
+    )
     if not scraper.login():
         print("❌ Login failed.")
         return
@@ -216,6 +242,12 @@ def main():
         return
 
     while True:
+        if mq_conn.is_open:
+            mq_conn.process_data_events() #Heartbeat
+        else:
+            print("❌ RabbitMQ connection dropped.")
+            break
+
         articles = scraper.fetch_news(limit=5)
         print(articles)
         time.sleep(10)

@@ -1,0 +1,36 @@
+# Use official Python base image
+FROM python:3.11-slim
+
+# Set work directory inside container
+WORKDIR /app
+
+# Install system dependencies (for pip and security)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir \
+    weaviate-client \
+    pika
+
+RUN apt-get update && apt-get install -y iputils-ping && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -u 1000 appuser
+
+# Copy the Python script into the container
+COPY news_store /app/news_store
+COPY news_model /app/news_model
+RUN chown -R appuser:appuser /app
+
+# Switch to the user
+USER appuser
+ENV HOME=/app
+WORKDIR /app
+
+# Set environment variable to prevent Python from writing pyc files
+ENV PYTHONUNBUFFERED 1
+ENV PYTHONPATH=/app/proto:/app/news_scraper:/app/news_model
+
+# Set default command
+CMD ["python", "-m", "news_store.news_ingestor"]

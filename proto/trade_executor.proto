@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package trading_executor;
+
+service TradeExecutor {
+  rpc ExecuteTrade(TradeRequest) returns (TradeResponse);
+}
+
+message TradeRequest {
+  string symbol = 1;
+  string trade = 2; // "buy" or "sell"
+  double amount = 3;
+}
+
+message TradeResponse {
+  string message = 1;
+  double cash_balance = 2;
+  map<string, double> portfolio = 3;
+}

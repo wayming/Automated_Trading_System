@@ -16,3 +16,5 @@ twitter_cookies_elonmusk.json
 in.log
 tv.log
 docker/.env
+rabbitmq/
+docker/weaviate_data

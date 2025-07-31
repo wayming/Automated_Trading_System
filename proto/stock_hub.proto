@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package stock_hub;
+
+service StockQuote {
+  rpc GetQuote(QuoteRequest) returns (QuoteResponse);
+}
+
+message QuoteRequest {
+  string symbol = 1;
+}
+
+message QuoteResponse {
+  string symbol = 1;
+  double price = 2;
+  string currency = 3;
+  string time = 4;
+}
