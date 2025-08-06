@@ -1,14 +1,20 @@
-variable "aws_region" {
+variable "region" {
   type    = string
-  default = "us-east-1"
+  default = "ap-southeast-2"
+}
+
+variable "stage_name" {
+  type    = string
+  default = "prod"
+}
+
+# S3 front bucket domain (example from CF template)
+variable "frontend_s3_domain" {
+  type    = string
+  default = "qts-front.s3.amazonaws.com"
 }
 
 variable "bucket_name" {
   type    = string
-  default = "qts-front" # 请改为你自己的全局唯一 S3 名称
-}
-
-variable "env" {
-  type    = string
-  default = "prod"
+  default = "qts-front"
 }

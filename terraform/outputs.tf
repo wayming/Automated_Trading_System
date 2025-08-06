@@ -1,7 +1,17 @@
-output "cloudfront_domain" {
-  value = aws_cloudfront_distribution.cdn.domain_name
+#####################
+# Outputs
+#####################
+output "http_api_endpoint" {
+  description = "HTTP API Endpoint URL for POST /send"
+  value       = "${aws_apigatewayv2_api.http_api.api_endpoint}/${var.stage_name}/send"
 }
 
-output "s3_bucket_name" {
-  value = aws_s3_bucket.frontend_bucket.id
+output "websocket_api_endpoint" {
+  description = "WebSocket API Endpoint URL"
+  value       = "wss://${aws_apigatewayv2_api.websocket_api.id}.execute-api.${var.region}.amazonaws.com/${var.stage_name}"
+}
+
+output "cloudfront_domain_name" {
+  description = "CloudFront distribution domain"
+  value       = aws_cloudfront_distribution.frontend_cf.domain_name
 }

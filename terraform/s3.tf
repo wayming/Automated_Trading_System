@@ -1,24 +1,23 @@
-data "aws_caller_identity" "current" {}
-
 resource "aws_s3_bucket" "frontend_bucket" {
-  bucket = var.bucket_name
-  acl    = "private"
-
-  versioning {
-    enabled = false
-  }
-
-  tags = {
-    Name = var.bucket_name
-    Env  = var.env
-  }
+  bucket = "qts-front-${random_id.suffix.hex}"
+  force_destroy = true
 }
 
-resource "aws_s3_bucket_public_access_block" "block" {
+# ACL 现在单独定义
+resource "aws_s3_bucket_acl" "frontend_bucket_acl" {
   bucket = aws_s3_bucket.frontend_bucket.id
+  acl    = "public-read" # 测试用，生产请改为 private + OAC
+}
 
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
+# 可选：测试时允许 public 访问
+resource "aws_s3_bucket_public_access_block" "public_block" {
+  bucket                  = aws_s3_bucket.frontend_bucket.id
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+resource "random_id" "suffix" {
+  byte_length = 4
 }
