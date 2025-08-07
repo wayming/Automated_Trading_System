@@ -1,21 +1,41 @@
+
 resource "aws_s3_bucket" "frontend_bucket" {
   bucket = "qts-front-${random_id.suffix.hex}"
-  force_destroy = true
 }
 
-# ACL 现在单独定义
-resource "aws_s3_bucket_acl" "frontend_bucket_acl" {
+resource "aws_s3_bucket_website_configuration" "website_config" {
   bucket = aws_s3_bucket.frontend_bucket.id
-  acl    = "public-read" # 测试用，生产请改为 private + OAC
+
+  index_document {
+    suffix = "index.html"
+  }
+
+  error_document {
+    key = "error.html"
+  }
 }
 
-# 可选：测试时允许 public 访问
-resource "aws_s3_bucket_public_access_block" "public_block" {
+resource "aws_s3_bucket_public_access_block" "public_access" {
   bucket                  = aws_s3_bucket.frontend_bucket.id
   block_public_acls       = false
   block_public_policy     = false
   ignore_public_acls      = false
   restrict_public_buckets = false
+}
+
+resource "aws_s3_bucket_policy" "public_read" {
+  bucket = aws_s3_bucket.frontend_bucket.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "PublicReadGetObject"
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = "s3:GetObject"
+      Resource  = "arn:aws:s3:::${aws_s3_bucket.frontend_bucket.id}/*"
+    }]
+  })
 }
 
 resource "random_id" "suffix" {

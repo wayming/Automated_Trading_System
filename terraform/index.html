@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>News Analysis</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #fff;
+      padding: 20px;
+    }
+
+    h2 {
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+
+    #messages {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message-card {
+      margin-bottom: 20px;
+      padding: 16px;
+      background-color: #f9f9f9;
+      border-left: 4px solid #3f51b5;
+      border-radius: 4px;
+      animation: slideDownFadeIn 0.3s ease-out;
+      transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .timestamp {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 10px;
+    }
+
+    ul {
+      list-style-position: inside;
+      margin: 0;
+      padding-left: 0;
+    }
+
+    li {
+      margin-left: 0;
+      padding-left: 0;
+    }
+
+    @keyframes slideDownFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+<body>
+  <h2>News Analysis</h2>
+  <div id="messages"></div>
+
+  <script>
+    const ws = new WebSocket("wss://85j61tx7ci.execute-api.ap-southeast-2.amazonaws.com/prod");
+
+    ws.onopen = () => console.log("WebSocket Connected");
+    ws.onclose = () => console.log("WebSocket Disconnected");
+    ws.onerror = e => console.error("WebSocket Error:", e);
+
+    ws.onmessage = event => {
+      handleIncomingMessage(event.data);
+    };
+
+    function formatTimestamp(date) {
+      const pad = (n) => n.toString().padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} `
+           + `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    }
+
+    function handleIncomingMessage(dataStr) {
+      const container = document.getElementById("messages");
+      const card = document.createElement("div");
+      card.className = "message-card";
+
+      const time = document.createElement("div");
+      time.className = "timestamp";
+      time.textContent = `🕒 ${formatTimestamp(new Date())}`;
+      card.appendChild(time);
+
+      let content;
+
+      try {
+        const parsedData = JSON.parse(dataStr);
+        content = renderJsonAsElements(parsedData);
+      } catch (e) {
+        // If not JSON, just show raw text
+        content = document.createElement("div");
+        content.textContent = dataStr;
+      }
+
+      card.appendChild(content);
+      container.prepend(card);
+
+      while (container.children.length > 10) {
+        container.removeChild(container.lastChild);
+      }
+    }
+
+    function renderJsonAsElements(obj, depth = 0) {
+      const container = document.createElement("div");
+      container.style.marginLeft = `${depth * 16}px`;
+
+      if (Array.isArray(obj)) {
+        const ul = document.createElement("ul");
+        obj.forEach((item) => {
+          const li = document.createElement("li");
+          if (typeof item === "object" && item !== null) {
+            li.appendChild(renderJsonAsElements(item, depth + 1));
+          } else {
+            li.textContent = String(item);
+          }
+          ul.appendChild(li);
+        });
+        container.appendChild(ul);
+      } else if (typeof obj === "object" && obj !== null) {
+        for (const key in obj) {
+          const keyElem = document.createElement("div");
+          keyElem.style.fontWeight = "bold";
+          keyElem.textContent = `${key}:`;
+          container.appendChild(keyElem);
+
+          const valueElem = renderJsonAsElements(obj[key], depth + 1);
+          container.appendChild(valueElem);
+        }
+      } else {
+        const valueElem = document.createElement("div");
+        valueElem.textContent = String(obj);
+        container.appendChild(valueElem);
+      }
+
+      return container;
+    }
+  </script>
+</body>
+</html>

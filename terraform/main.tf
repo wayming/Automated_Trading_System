@@ -423,21 +423,24 @@ resource "aws_iam_role_policy_attachment" "attach_invoke_worker_policy" {
 resource "aws_apigatewayv2_integration" "ws_connect_integration" {
   api_id                 = aws_apigatewayv2_api.websocket_api.id
   integration_type       = "AWS_PROXY"
-  integration_uri        = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${aws_lambda_function.handle_connect.arn}/invocations"
+  integration_uri        = aws_lambda_function.handle_connect.invoke_arn
+  integration_method     = "POST"
   payload_format_version = "1.0"
 }
 
 resource "aws_apigatewayv2_integration" "ws_disconnect_integration" {
   api_id                 = aws_apigatewayv2_api.websocket_api.id
   integration_type       = "AWS_PROXY"
-  integration_uri        = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${aws_lambda_function.handle_disconnect.arn}/invocations"
+  integration_uri        = aws_lambda_function.handle_disconnect.invoke_arn
+  integration_method     = "POST"
   payload_format_version = "1.0"
 }
 
 resource "aws_apigatewayv2_integration" "ws_send_integration" {
   api_id                 = aws_apigatewayv2_api.websocket_api.id
   integration_type       = "AWS_PROXY"
-  integration_uri        = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${aws_lambda_function.handle_send_message.arn}/invocations"
+  integration_uri        = aws_lambda_function.handle_send_message.invoke_arn
+  integration_method     = "POST"
   payload_format_version = "1.0"
 }
 
@@ -485,7 +488,6 @@ resource "aws_apigatewayv2_deployment" "ws_deployment" {
 resource "aws_apigatewayv2_stage" "ws_stage" {
   api_id = aws_apigatewayv2_api.websocket_api.id
   name   = var.stage_name
-  deployment_id = aws_apigatewayv2_deployment.ws_deployment.id
   auto_deploy = true
 
   access_log_settings {
@@ -500,6 +502,8 @@ resource "aws_apigatewayv2_stage" "ws_stage" {
   default_route_settings {
     data_trace_enabled = true
     logging_level      = "INFO"
+    throttling_burst_limit = 5000
+    throttling_rate_limit  = 10000
   }
 
   tags = {
@@ -527,6 +531,13 @@ resource "aws_apigatewayv2_stage" "http_stage" {
   api_id = aws_apigatewayv2_api.http_api.id
   name   = var.stage_name
   auto_deploy = true
+
+  default_route_settings {
+    data_trace_enabled = true
+    logging_level      = "INFO"
+    throttling_burst_limit = 5000
+    throttling_rate_limit  = 10000
+  }
 
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.http_api_logs.arn
