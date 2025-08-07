@@ -1,6 +1,6 @@
 
 resource "aws_s3_bucket" "frontend_bucket" {
-  bucket = "qts-front-${random_id.suffix.hex}"
+  bucket = var.bucket_name
 }
 
 resource "aws_s3_bucket_website_configuration" "website_config" {
@@ -25,6 +25,8 @@ resource "aws_s3_bucket_public_access_block" "public_access" {
 
 resource "aws_s3_bucket_policy" "public_read" {
   bucket = aws_s3_bucket.frontend_bucket.id
+
+  depends_on = [aws_s3_bucket_public_access_block.public_access]
 
   policy = jsonencode({
     Version = "2012-10-17"
