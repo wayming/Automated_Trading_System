@@ -23,7 +23,7 @@ resource "aws_apigatewayv2_api" "http_api" {
 resource "aws_apigatewayv2_integration" "ws_connect_integration" {
   api_id                 = aws_apigatewayv2_api.websocket_api.id
   integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_function.handle_connect.invoke_arn
+  integration_uri        = aws_lambda_function.lambda_functions["handle_connect"].invoke_arn
   integration_method     = "POST"
   payload_format_version = "1.0"
 }
@@ -31,7 +31,7 @@ resource "aws_apigatewayv2_integration" "ws_connect_integration" {
 resource "aws_apigatewayv2_integration" "ws_disconnect_integration" {
   api_id                 = aws_apigatewayv2_api.websocket_api.id
   integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_function.handle_disconnect.invoke_arn
+  integration_uri        = aws_lambda_function.lambda_functions["handle_disconnect"].invoke_arn
   integration_method     = "POST"
   payload_format_version = "1.0"
 }
@@ -39,7 +39,7 @@ resource "aws_apigatewayv2_integration" "ws_disconnect_integration" {
 resource "aws_apigatewayv2_integration" "ws_send_integration" {
   api_id                 = aws_apigatewayv2_api.websocket_api.id
   integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_function.handle_send_message.invoke_arn
+  integration_uri        = aws_lambda_function.lambda_functions["handle_send_message"].invoke_arn
   integration_method     = "POST"
   payload_format_version = "1.0"
 }
@@ -117,7 +117,7 @@ resource "aws_apigatewayv2_stage" "ws_stage" {
 resource "aws_apigatewayv2_integration" "http_send_integration" {
   api_id                 = aws_apigatewayv2_api.http_api.id
   integration_type       = "AWS_PROXY"
-  integration_uri        = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${aws_lambda_function.handle_send_message.arn}/invocations"
+  integration_uri        = "arn:aws:apigateway:${var.region}:lambda:path/2015-03-31/functions/${aws_lambda_function.lambda_functions["handle_send_message"].arn}/invocations"
   payload_format_version = "2.0"
 }
 

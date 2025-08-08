@@ -14,16 +14,16 @@ if [ -z "$REGION" ]; then
   exit 1
 fi
 
-# if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
-#   echo "Bucket exists, deleting index.html..."
-#   aws s3 rm s3://$BUCKET_NAME/index.html
-# else
-#   echo "Bucket does not exist."
-# fi
+if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
+  echo "Bucket exists, deleting index.html..."
+  aws s3 rm s3://$BUCKET_NAME/index.html
+else
+  echo "Bucket does not exist."
+fi
 
 # terraform destroy -auto-approve
 
-# terraform apply -auto-approve -var bucket_name="$BUCKET_NAME" -var region="$REGION"
+terraform apply -auto-approve -var bucket_name="$BUCKET_NAME" -var region="$REGION"
 
 # Replace <WEBSOCKET_API_ENDPOINT> with WEBSOCKET_API_ENDPOINT
 WEBSOCKET_API_ENDPOINT=$(terraform output -raw websocket_api_endpoint)
