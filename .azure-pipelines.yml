@@ -6,11 +6,18 @@ trigger:
 pool:
   vmImage: 'ubuntu-latest'
 
-steps:
-  - task: Checkout@2
-    displayName: 'Checkout code from GitHub'
+variables:
+  IMAGE_TAG: "$(Build.BuildId)"
 
-  - task: Bash@3
+steps:
+  - checkout: self
+
+  - script: |
+      echo "Code checked out from GitHub"
+      ls -al
+    displayName: "List files"
+
+  - task: Bash
     displayName: 'Run tests'
     inputs:
       targetType: inline
