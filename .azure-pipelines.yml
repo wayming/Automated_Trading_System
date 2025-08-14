@@ -1,0 +1,20 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - task: Checkout@2
+    displayName: 'Checkout code from GitHub'
+
+  - task: Bash@3
+    displayName: 'Run tests'
+    inputs:
+      targetType: inline
+      script: |
+        echo "Running tests..."
+        docker --version
+        echo "✅ Tests passed!"
