@@ -17,7 +17,7 @@ steps:
       ls -al
     displayName: "List files"
 
-  - task: Bash
+  - task: Bash@3
     displayName: 'Run tests'
     inputs:
       targetType: inline
