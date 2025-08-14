@@ -6,8 +6,8 @@ trigger:
 variables:
   IMAGE_TAG: "$(Build.BuildId)"
 
-steps:
-  - checkout: self
+# steps:
+#   - checkout: self
   
   # - script: |
   #     echo "✅ 独占作业槽位成功"
