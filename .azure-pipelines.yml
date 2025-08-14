@@ -1,8 +1,3 @@
-# 添加资源限制和显式作业控制
-resources: 
-  containers: [] 
-  repositories: []
-
 trigger:
   branches:
     include:
