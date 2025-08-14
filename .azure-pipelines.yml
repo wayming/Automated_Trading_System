@@ -1,24 +1,20 @@
-# 添加这两行解决99%的免费账号问题
-resources: {}
-queue: {}  # 关键修复项
-
+# 最简单的有效配置
 trigger:
   branches:
     include:
       - main
 
-# 必须使用jobs结构而不是直接steps
-jobs:
-- job: RunInIsolation
-  pool:
-    name: Azure Pipelines
-    vmImage: 'ubuntu-latest'
-    demands:  # 防止系统任务占用
-    - Agent.OS -equals Linux
+# 关键修改：使用显式池声明并跳过系统任务
+pool:
+  name: Azure Pipelines
+  vmImage: 'ubuntu-latest'
+  demands: []  # 跳过系统任务
 
-  variables:
-    IMAGE_TAG: "$(Build.BuildId)"
-
-  steps:
-  - checkout: self
-    clean: true  # 减少系统负载
+steps:
+- checkout: self  # 检出代码
+  
+- script: |
+    echo "✅ 成功运行最简单的流水线!"
+    echo "Build ID: $(Build.BuildId)"
+    echo "Agent name: $(Agent.Name)"
+  displayName: '验证执行'
