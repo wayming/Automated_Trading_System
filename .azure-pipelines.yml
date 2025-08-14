@@ -43,8 +43,8 @@ jobs:
         echo "✅ 所有测试通过!"
       displayName: "执行测试"
     
-    - script: |
-        echo "构建Docker镜像 (Tag: $IMAGE_TAG)..."
-        cd docker
-        docker compose build
-      displayName: "构建Docker镜像"
+    # - script: |
+    #     echo "构建Docker镜像 (Tag: $IMAGE_TAG)..."
+    #     cd docker
+    #     docker compose build
+    #   displayName: "构建Docker镜像"
