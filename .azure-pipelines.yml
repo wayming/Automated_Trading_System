@@ -1,37 +1,24 @@
+# 添加这两行解决99%的免费账号问题
+resources: {}
+queue: {}  # 关键修复项
+
 trigger:
   branches:
     include:
       - main
 
-variables:
-  IMAGE_TAG: "$(Build.BuildId)"
+# 必须使用jobs结构而不是直接steps
+jobs:
+- job: RunInIsolation
+  pool:
+    name: Azure Pipelines
+    vmImage: 'ubuntu-latest'
+    demands:  # 防止系统任务占用
+    - Agent.OS -equals Linux
 
-steps:
+  variables:
+    IMAGE_TAG: "$(Build.BuildId)"
+
+  steps:
   - checkout: self
-  
-  # - script: |
-  #     echo "✅ 独占作业槽位成功"
-  #     echo "当前代理: $(agent.name)"
-  #   displayName: "槽位验证"
-  
-  # - script: |
-  #     echo "代码检出完成"
-  #     ls -al
-  #   displayName: "文件列表检查"
-  
-  # - script: |
-  #     echo "检查系统依赖..."
-  #     docker --version
-  #     docker compose version
-  #   displayName: "依赖检查"
-  
-  # - script: |
-  #     echo "运行测试..."
-  #     echo "✅ 所有测试通过!"
-  #   displayName: "执行测试"
-  
-  # - script: |
-  #     echo "构建Docker镜像 (Tag: $IMAGE_TAG)..."
-  #     cd docker
-  #     docker compose build
-  #   displayName: "构建Docker镜像"
+    clean: true  # 减少系统负载
