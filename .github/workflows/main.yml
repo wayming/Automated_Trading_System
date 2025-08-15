@@ -25,7 +25,7 @@ jobs:
 
       # Build images
       - name: Check Docker version
-        run: docker compose build -f docker/docker-compose.yml
+        run: docker compose -f docker/docker-compose.yml build
 
       # Test
       - name: Run tests
