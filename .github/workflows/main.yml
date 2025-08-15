@@ -13,21 +13,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 拉取代码
+      # Checkout
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 列出文件
+      # List files
       - name: List files
         run: |
           echo "Code checked out from GitHub"
           ls -al
 
-      # 安装 Docker（GitHub 自带）
+      # Build images
       - name: Check Docker version
-        run: docker --version
+        run: docker compose build -f docker/docker-compose.yml
 
-      # 运行测试（示例）
+      # Test
       - name: Run tests
         run: |
           echo "Running tests..."
