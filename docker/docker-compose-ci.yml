@@ -156,7 +156,7 @@ services:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.news.store
     image: ghcr.io/wayming/trade:latest
-      volumes:
+    volumes:
       - ../output:/app/output  # Mount volume
     environment:
       WEAVIATE_HTTP_PORT: '8080'
