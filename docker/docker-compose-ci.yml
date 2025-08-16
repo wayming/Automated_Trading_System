@@ -1,0 +1,201 @@
+services:
+  ivscraper:
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.scraper
+    image: ghcr.io/wayming/trade:latest
+    container_name: python-scraper-iv
+    volumes:
+      - ../output:/app/output  # Mount the current directory to /app in the container
+    environment:
+      - DISPLAY=:99  # If running headlessly or using Xvfb
+    env_file:
+      - .env
+    networks:
+      - scraper-network
+    restart: always  # Restart container if it crashes
+    command: >
+      bash -c "
+        Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp &
+        export DISPLAY=:99
+        python -m news_scraper.scraper_investing
+      "
+    depends_on:
+      rabbitmq:
+        condition: service_healthy # RabbitMQ begin to accept connections
+
+  tvscraper:
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.scraper
+    image: ghcr.io/wayming/trade:latest
+    container_name: python-scraper-tv
+    volumes:
+      - ../output:/app/output  # Mount the current directory to /app in the container
+    environment:
+      - DISPLAY=:99  # If running headlessly or using Xvfb
+    env_file:
+      - .env
+    networks:
+      - scraper-network
+    restart: always  # Restart container if it crashes
+    command: >
+      bash -c "
+        Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp &
+        export DISPLAY=:99
+        python -m news_scraper.scraper_trading_view
+      "
+    depends_on:
+      rabbitmq:
+        condition: service_healthy # RabbitMQ begin to accept connections
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"  # Management UI
+    restart: always
+    # environment:
+    #   - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit heartbeat 600 channel_operation_timeout 600000 log_levels [{connection,debug},{channel,debug}]
+    volumes:
+      - ../rabbitmq/rabbitmq_data:/var/lib/rabbitmq
+      - ../rabbitmq/rabbitmq_logs:/var/log/rabbitmq
+    networks:
+      - scraper-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ivanalyser:
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.analyser
+    image: ghcr.io/wayming/trade:latest
+    env_file:
+      - .env
+    environment:
+      - AWS_GATEWAY_ENDPOINT=aws_gateway:50053
+    volumes:
+      - ../output:/app/output  # Mount the current directory to /app in the container
+    command: python -m news_scraper.analyser_investing
+    depends_on:
+      rabbitmq:
+        condition: service_healthy # RabbitMQ begin to accept connections
+      mock_executor:
+        condition: service_started
+    networks:
+      - scraper-network
+
+  tvanalyser:
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.analyser
+    image: ghcr.io/wayming/trade:latest
+    env_file:
+      - .env
+    environment:
+      - AWS_GATEWAY_ENDPOINT=aws_gateway:50053
+    volumes:
+      - ../output:/app/output  # Mount volume
+    command: python -m news_scraper.analyser_trading_view
+    depends_on:
+      rabbitmq:
+        condition: service_healthy # RabbitMQ begin to accept connections
+      mock_executor:
+        condition: service_started
+      aws_gateway:
+        condition: service_started
+    networks:
+      - scraper-network
+
+  mock_executor:
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.mock.executor
+    image: ghcr.io/wayming/trade:latest
+    ports:
+      - "50051:50051"
+    volumes:
+      - ../output:/app/output  # Mount volume
+    depends_on:
+      stock_hub:
+        condition: service_started
+    networks:
+      - scraper-network
+
+  stock_hub:
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.stock.hub
+    image: ghcr.io/wayming/trade:latest
+    ports:
+      - "50052:50052"
+    volumes:
+      - ../output:/app/output  # Mount volume
+    networks:
+      - scraper-network
+
+  aws_gateway:
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.aws.gateway
+    image: ghcr.io/wayming/trade:latest
+    env_file:
+      - .env
+    ports:
+      - "50053:50053"
+    volumes:
+      - ../output:/app/output  # Mount volume
+    networks:
+      - scraper-network
+
+  news_store:
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.news.store
+    image: ghcr.io/wayming/trade:latest
+      volumes:
+      - ../output:/app/output  # Mount volume
+    environment:
+      WEAVIATE_HTTP_PORT: '8080'
+      WEAVIATE_GRPC_PORT: '50051'
+    networks:
+      - scraper-network
+    depends_on:
+      rabbitmq:
+        condition: service_started
+      weaviate:
+        condition: service_started
+
+  # Weaviate service for vector storage
+  weaviate:
+    command:
+    - --host
+    - 0.0.0.0
+    - --port
+    - '8080'
+    - --scheme
+    - http
+    image: cr.weaviate.io/semitechnologies/weaviate:1.30.0
+    ports:
+    - 50054:8080
+    - 50055:50051
+    volumes:
+    - ./weaviate_data:/var/lib/weaviate
+    restart: on-failure:0
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      ENABLE_MODULES: ''
+      ENABLE_GRPC_SERVER: 'true'
+      CLUSTER_HOSTNAME: 'node1'
+    networks:
+      - scraper-network
+
+networks:
+  scraper-network:
+    driver: bridge
