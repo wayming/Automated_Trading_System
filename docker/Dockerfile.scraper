@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     libx11-dev \
     libxext6 \
     libxi6 \
-    libgdk-pixbuf2.0-0 \
+    libgdk-pixbuf-xlib-2.0-0 \
     libgtk-3-0 \
     libgbm-dev \
     libnss3 \
@@ -19,7 +19,6 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     fonts-liberation \
     libappindicator3-1 \
-    libgdk-pixbuf2.0-0 \
     libxcomposite1 \
     libxdamage1 \
     libatspi2.0-0 \
@@ -40,9 +39,10 @@ RUN apt-get update && apt-get install -y google-chrome-stable --no-install-recom
  && rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update && apt-get install -y \
-    curl unzip gnupg wget xvfb libxi6 libgconf-2-4 libnss3 libxss1 libasound2 fonts-liberation \
+    curl unzip gnupg wget xvfb libxi6 libnss3 libxss1 libasound2 fonts-liberation \
     libappindicator3-1 xdg-utils libu2f-udev libvulkan1 libxrandr2 libatk-bridge2.0-0 libgtk-3-0 \
-    chromium chromium-driver
+    chromium chromium-driver \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip
