@@ -9,8 +9,6 @@ services:
       - ../output:/app/output  # Mount the current directory to /app in the container
     environment:
       - DISPLAY=:99  # If running headlessly or using Xvfb
-    env_file:
-      - .env
     networks:
       - scraper-network
     restart: always  # Restart container if it crashes
@@ -34,8 +32,6 @@ services:
       - ../output:/app/output  # Mount the current directory to /app in the container
     environment:
       - DISPLAY=:99  # If running headlessly or using Xvfb
-    env_file:
-      - .env
     networks:
       - scraper-network
     restart: always  # Restart container if it crashes
@@ -73,8 +69,6 @@ services:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.analyser
     image: ghcr.io/wayming/trade:latest
-    env_file:
-      - .env
     environment:
       - AWS_GATEWAY_ENDPOINT=aws_gateway:50053
     volumes:
@@ -93,8 +87,6 @@ services:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.analyser
     image: ghcr.io/wayming/trade:latest
-    env_file:
-      - .env
     environment:
       - AWS_GATEWAY_ENDPOINT=aws_gateway:50053
     volumes:
@@ -142,8 +134,6 @@ services:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.aws.gateway
     image: ghcr.io/wayming/trade:latest
-    env_file:
-      - .env
     ports:
       - "50053:50053"
     volumes:
