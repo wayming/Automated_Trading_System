@@ -28,8 +28,8 @@ jobs:
           ls -al
 
       # Build images
-      - name: Check Docker version
-        run: docker compose -f docker/docker-compose.yml build
+      - name: Build images
+        run: docker compose -f docker/docker-compose-ci.yml build 
 
       # Test
       - name: Run tests
@@ -40,7 +40,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      # Push images
+      # Checkout code (required for push job)
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Login to the container registry
       - name: Login to the container registry
         uses: docker/login-action@v2
         with:
@@ -48,14 +52,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push images
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          run: docker compose -f docker/docker-compose.yml push
-
-        
+      # Build and push all images using docker compose
+      - name: Build and push all images
+        run: |
+          docker compose -f docker/docker-compose-ci.yml push
