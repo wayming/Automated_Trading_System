@@ -1,0 +1,216 @@
+# Default values for trade.
+# This is a YAML-formatted file.
+# Declare variables to be substituted into your templates.
+
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Network Policy
+networkPolicy:
+  enabled: true
+  allowedNamespaces: []
+
+# Persistent Volumes
+persistence:
+  output:
+    enabled: true
+    size: 10Gi
+    accessMode: ReadWriteMany
+    storageClass: ""
+  rabbitmq:
+    enabled: true
+    size: 5Gi
+    accessMode: ReadWriteOnce
+    storageClass: ""
+  weaviate:
+    enabled: true
+    size: 10Gi
+    accessMode: ReadWriteOnce
+    storageClass: ""
+
+# RabbitMQ Configuration
+rabbitmq:
+  enabled: true
+  image:
+    repository: rabbitmq
+    tag: "3-management"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5672
+    managementPort: 15672
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  env:
+    RABBITMQ_DEFAULT_USER: "admin"
+    RABBITMQ_DEFAULT_PASS: "password"
+
+# Weaviate Configuration
+weaviate:
+  enabled: true
+  image:
+    repository: semitechnologies/weaviate
+    tag: "1.21.2"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+    grpcPort: 50051
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  env:
+    QUERY_DEFAULTS_LIMIT: "25"
+    AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+    PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
+
+# Scrapers Configuration
+scrapers:
+  ivscraper:
+    enabled: true
+    image:
+      repository: trade/ivscraper
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+    env:
+      DISPLAY: ":99"
+  
+  tvscraper:
+    enabled: true
+    image:
+      repository: trade/tvscraper
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+    env:
+      DISPLAY: ":99"
+
+# Analyzers Configuration
+analyzers:
+  ivanalyser:
+    enabled: true
+    image:
+      repository: trade/ivanalyser
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+  
+  tvanalyser:
+    enabled: true
+    image:
+      repository: trade/tvanalyser
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+
+# Core Services Configuration
+coreServices:
+  mockExecutor:
+    enabled: true
+    image:
+      repository: trade/mock_executor
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 50051
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+  
+  stockHub:
+    enabled: true
+    image:
+      repository: trade/stock_hub
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 50052
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+  
+  awsGateway:
+    enabled: true
+    image:
+      repository: trade/aws_gateway
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 50053
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+  
+  newsStore:
+    enabled: true
+    image:
+      repository: trade/news_store
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+# Init Containers
+initContainers:
+  dependencyChecks:
+    enabled: true
+    image:
+      repository: busybox
+      tag: "1.35"
+      pullPolicy: IfNotPresent

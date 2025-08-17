@@ -1,0 +1,18 @@
+{{- if .Values.persistence.output.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "trade.fullname" . }}-output-pvc
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: storage
+spec:
+  accessModes:
+    - {{ .Values.persistence.output.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.output.size }}
+  {{- if or .Values.persistence.output.storageClass .Values.global.storageClass }}
+  storageClassName: {{ include "trade.storageClass" .Values.persistence.output }}
+  {{- end }}
+{{- end }}

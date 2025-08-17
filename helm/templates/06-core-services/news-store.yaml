@@ -1,0 +1,64 @@
+{{- if .Values.coreServices.newsStore.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "trade.fullname" . }}-news-store
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: news-store
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "trade.selectorLabels" . | nindent 6 }}
+      component: news-store
+  template:
+    metadata:
+      labels:
+        {{- include "trade.selectorLabels" . | nindent 8 }}
+        component: news-store
+    spec:
+      initContainers:
+      - name: wait-for-rabbitmq
+        image: busybox:1.35
+        command: ['sh', '-c']
+        args:
+        - |
+          until nc -z {{ include "trade.fullname" . }}-rabbitmq 5672; do
+            echo "Waiting for RabbitMQ..."
+            sleep 5
+          done
+          echo "RabbitMQ is ready!"
+      - name: wait-for-weaviate
+        image: busybox:1.35
+        command: ['sh', '-c']
+        args:
+        - |
+          until nc -z {{ include "trade.fullname" . }}-weaviate 8080; do
+            echo "Waiting for Weaviate..."
+            sleep 5
+          done
+          echo "Weaviate is ready!"
+      containers:
+      - name: news-store
+        image: "{{ .Values.coreServices.newsStore.image.repository }}:{{ .Values.coreServices.newsStore.image.tag }}"
+        imagePullPolicy: {{ .Values.coreServices.newsStore.image.pullPolicy }}
+        env:
+        - name: RABBITMQ_URL
+          value: {{ include "trade.rabbitmqUrl" . | quote }}
+        - name: WEAVIATE_URL
+          value: {{ include "trade.weaviateUrl" . | quote }}
+        volumeMounts:
+        {{- if .Values.persistence.output.enabled }}
+        - name: output-volume
+          mountPath: /app/output
+        {{- end }}
+        resources:
+          {{- toYaml .Values.coreServices.newsStore.resources | nindent 10 }}
+      volumes:
+      {{- if .Values.persistence.output.enabled }}
+      - name: output-volume
+        persistentVolumeClaim:
+          claimName: {{ include "trade.fullname" . }}-output-pvc
+      {{- end }}
+{{- end }}

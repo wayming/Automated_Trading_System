@@ -1,0 +1,23 @@
+{{- if .Values.rabbitmq.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "trade.fullname" . }}-rabbitmq
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: rabbitmq
+spec:
+  type: {{ .Values.rabbitmq.service.type }}
+  ports:
+  - name: amqp
+    port: {{ .Values.rabbitmq.service.port }}
+    targetPort: amqp
+    protocol: TCP
+  - name: management
+    port: {{ .Values.rabbitmq.service.managementPort }}
+    targetPort: management
+    protocol: TCP
+  selector:
+    {{- include "trade.selectorLabels" . | nindent 4 }}
+    component: rabbitmq
+{{- end }}

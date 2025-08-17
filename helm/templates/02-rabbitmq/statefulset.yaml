@@ -1,0 +1,78 @@
+{{- if .Values.rabbitmq.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "trade.fullname" . }}-rabbitmq
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: rabbitmq
+spec:
+  serviceName: {{ include "trade.fullname" . }}-rabbitmq
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "trade.selectorLabels" . | nindent 6 }}
+      component: rabbitmq
+  template:
+    metadata:
+      labels:
+        {{- include "trade.selectorLabels" . | nindent 8 }}
+        component: rabbitmq
+    spec:
+      containers:
+      - name: rabbitmq
+        image: "{{ .Values.rabbitmq.image.repository }}:{{ .Values.rabbitmq.image.tag }}"
+        imagePullPolicy: {{ .Values.rabbitmq.image.pullPolicy }}
+        ports:
+        - name: amqp
+          containerPort: 5672
+          protocol: TCP
+        - name: management
+          containerPort: 15672
+          protocol: TCP
+        env:
+        - name: RABBITMQ_DEFAULT_USER
+          value: {{ .Values.rabbitmq.env.RABBITMQ_DEFAULT_USER | quote }}
+        - name: RABBITMQ_DEFAULT_PASS
+          value: {{ .Values.rabbitmq.env.RABBITMQ_DEFAULT_PASS | quote }}
+        volumeMounts:
+        - name: rabbitmq-data
+          mountPath: /var/lib/rabbitmq
+        {{- if .Values.persistence.output.enabled }}
+        - name: output-volume
+          mountPath: /app/output
+        {{- end }}
+        resources:
+          {{- toYaml .Values.rabbitmq.resources | nindent 10 }}
+        livenessProbe:
+          exec:
+            command:
+            - rabbitmq-diagnostics
+            - -q
+            - ping
+          initialDelaySeconds: 60
+          periodSeconds: 60
+          timeoutSeconds: 15
+        readinessProbe:
+          exec:
+            command:
+            - rabbitmq-diagnostics
+            - -q
+            - check_running
+          initialDelaySeconds: 20
+          periodSeconds: 60
+          timeoutSeconds: 10
+      volumes:
+      {{- if .Values.persistence.output.enabled }}
+      - name: output-volume
+        persistentVolumeClaim:
+          claimName: {{ include "trade.fullname" . }}-output-pvc
+      {{- end }}
+      - name: rabbitmq-data
+        {{- if .Values.persistence.rabbitmq.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ include "trade.fullname" . }}-rabbitmq-pvc
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+{{- end }}

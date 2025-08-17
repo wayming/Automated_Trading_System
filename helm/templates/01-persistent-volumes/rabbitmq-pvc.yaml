@@ -1,0 +1,18 @@
+{{- if .Values.persistence.rabbitmq.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "trade.fullname" . }}-rabbitmq-pvc
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: rabbitmq
+spec:
+  accessModes:
+    - {{ .Values.persistence.rabbitmq.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.rabbitmq.size }}
+  {{- if or .Values.persistence.rabbitmq.storageClass .Values.global.storageClass }}
+  storageClassName: {{ include "trade.storageClass" .Values.persistence.rabbitmq }}
+  {{- end }}
+{{- end }}

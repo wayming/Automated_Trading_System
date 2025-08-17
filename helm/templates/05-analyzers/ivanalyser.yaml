@@ -1,0 +1,54 @@
+{{- if .Values.analyzers.ivanalyser.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "trade.fullname" . }}-ivanalyser
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: ivanalyser
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "trade.selectorLabels" . | nindent 6 }}
+      component: ivanalyser
+  template:
+    metadata:
+      labels:
+        {{- include "trade.selectorLabels" . | nindent 8 }}
+        component: ivanalyser
+    spec:
+      initContainers:
+      - name: wait-for-rabbitmq
+        image: busybox:1.35
+        command: ['sh', '-c']
+        args:
+        - |
+          until nc -z {{ include "trade.fullname" . }}-rabbitmq 5672; do
+            echo "Waiting for RabbitMQ..."
+            sleep 5
+          done
+          echo "RabbitMQ is ready!"
+      containers:
+      - name: ivanalyser
+        image: "{{ .Values.analyzers.ivanalyser.image.repository }}:{{ .Values.analyzers.ivanalyser.image.tag }}"
+        imagePullPolicy: {{ .Values.analyzers.ivanalyser.image.pullPolicy }}
+        env:
+        - name: RABBITMQ_URL
+          value: {{ include "trade.rabbitmqUrl" . | quote }}
+        - name: WEAVIATE_URL
+          value: {{ include "trade.weaviateUrl" . | quote }}
+        volumeMounts:
+        {{- if .Values.persistence.output.enabled }}
+        - name: output-volume
+          mountPath: /app/output
+        {{- end }}
+        resources:
+          {{- toYaml .Values.analyzers.ivanalyser.resources | nindent 10 }}
+      volumes:
+      {{- if .Values.persistence.output.enabled }}
+      - name: output-volume
+        persistentVolumeClaim:
+          claimName: {{ include "trade.fullname" . }}-output-pvc
+      {{- end }}
+{{- end }}

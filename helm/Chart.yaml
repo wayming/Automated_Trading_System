@@ -1,0 +1,17 @@
+apiVersion: v2
+name: trade
+description: A Helm chart for Trade application services
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - trading
+  - news
+  - scraping
+  - analysis
+home: https://github.com/wayming/trade
+sources:
+  - https://github.com/wayming/trade
+maintainers:
+  - name: wayming
+    email: wayming@example.com

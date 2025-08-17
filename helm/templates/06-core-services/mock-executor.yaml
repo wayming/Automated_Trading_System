@@ -1,0 +1,76 @@
+{{- if .Values.coreServices.mockExecutor.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "trade.fullname" . }}-mock-executor
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: mock-executor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "trade.selectorLabels" . | nindent 6 }}
+      component: mock-executor
+  template:
+    metadata:
+      labels:
+        {{- include "trade.selectorLabels" . | nindent 8 }}
+        component: mock-executor
+    spec:
+      initContainers:
+      - name: wait-for-rabbitmq
+        image: busybox:1.35
+        command: ['sh', '-c']
+        args:
+        - |
+          until nc -z {{ include "trade.fullname" . }}-rabbitmq 5672; do
+            echo "Waiting for RabbitMQ..."
+            sleep 5
+          done
+          echo "RabbitMQ is ready!"
+      containers:
+      - name: mock-executor
+        image: "{{ .Values.coreServices.mockExecutor.image.repository }}:{{ .Values.coreServices.mockExecutor.image.tag }}"
+        imagePullPolicy: {{ .Values.coreServices.mockExecutor.image.pullPolicy }}
+        ports:
+        - name: grpc
+          containerPort: 50051
+          protocol: TCP
+        env:
+        - name: RABBITMQ_URL
+          value: {{ include "trade.rabbitmqUrl" . | quote }}
+        volumeMounts:
+        {{- if .Values.persistence.output.enabled }}
+        - name: output-volume
+          mountPath: /app/output
+        {{- end }}
+        resources:
+          {{- toYaml .Values.coreServices.mockExecutor.resources | nindent 10 }}
+      volumes:
+      {{- if .Values.persistence.output.enabled }}
+      - name: output-volume
+        persistentVolumeClaim:
+          claimName: {{ include "trade.fullname" . }}-output-pvc
+      {{- end }}
+---
+{{- if .Values.coreServices.mockExecutor.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "trade.fullname" . }}-mock-executor
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: mock-executor
+spec:
+  type: {{ .Values.coreServices.mockExecutor.service.type }}
+  ports:
+  - name: grpc
+    port: {{ .Values.coreServices.mockExecutor.service.port }}
+    targetPort: grpc
+    protocol: TCP
+  selector:
+    {{- include "trade.selectorLabels" . | nindent 4 }}
+    component: mock-executor
+{{- end }}
+{{- end }}

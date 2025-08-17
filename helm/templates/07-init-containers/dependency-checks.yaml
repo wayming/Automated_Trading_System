@@ -1,0 +1,26 @@
+{{- if .Values.initContainers.dependencyChecks.enabled }}
+# This is a template for dependency checking init containers
+# It's included in individual service deployments, not deployed as a standalone resource
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "trade.fullname" . }}-dependency-checks
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+data:
+  wait-for-rabbitmq.sh: |
+    #!/bin/sh
+    until nc -z {{ include "trade.fullname" . }}-rabbitmq 5672; do
+      echo "Waiting for RabbitMQ..."
+      sleep 5
+    done
+    echo "RabbitMQ is ready!"
+  
+  wait-for-weaviate.sh: |
+    #!/bin/sh
+    until nc -z {{ include "trade.fullname" . }}-weaviate 8080; do
+      echo "Waiting for Weaviate..."
+      sleep 5
+    done
+    echo "Weaviate is ready!"
+{{- end }}

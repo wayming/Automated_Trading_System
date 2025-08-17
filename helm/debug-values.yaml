@@ -1,0 +1,39 @@
+# Debug configuration - only deploy infrastructure services
+# RabbitMQ and Weaviate only
+
+# Keep RabbitMQ and Weaviate enabled
+rabbitmq:
+  enabled: true
+
+weaviate:
+  enabled: true
+
+# Disable all scrapers
+scrapers:
+  ivscraper:
+    enabled: false
+  tvscraper:
+    enabled: false
+
+# Disable all analyzers
+analyzers:
+  ivanalyser:
+    enabled: false
+  tvanalyser:
+    enabled: false
+
+# Disable all core services
+coreServices:
+  mockExecutor:
+    enabled: false
+  stockHub:
+    enabled: false
+  awsGateway:
+    enabled: false
+  newsStore:
+    enabled: false
+
+# Keep init containers disabled for now
+initContainers:
+  dependencyChecks:
+    enabled: false

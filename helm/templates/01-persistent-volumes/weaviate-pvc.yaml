@@ -1,0 +1,18 @@
+{{- if .Values.persistence.weaviate.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "trade.fullname" . }}-weaviate-pvc
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: weaviate
+spec:
+  accessModes:
+    - {{ .Values.persistence.weaviate.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.weaviate.size }}
+  {{- if or .Values.persistence.weaviate.storageClass .Values.global.storageClass }}
+  storageClassName: {{ include "trade.storageClass" .Values.persistence.weaviate }}
+  {{- end }}
+{{- end }}

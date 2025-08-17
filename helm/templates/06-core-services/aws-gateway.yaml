@@ -1,0 +1,76 @@
+{{- if .Values.coreServices.awsGateway.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "trade.fullname" . }}-aws-gateway
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: aws-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "trade.selectorLabels" . | nindent 6 }}
+      component: aws-gateway
+  template:
+    metadata:
+      labels:
+        {{- include "trade.selectorLabels" . | nindent 8 }}
+        component: aws-gateway
+    spec:
+      initContainers:
+      - name: wait-for-rabbitmq
+        image: busybox:1.35
+        command: ['sh', '-c']
+        args:
+        - |
+          until nc -z {{ include "trade.fullname" . }}-rabbitmq 5672; do
+            echo "Waiting for RabbitMQ..."
+            sleep 5
+          done
+          echo "RabbitMQ is ready!"
+      containers:
+      - name: aws-gateway
+        image: "{{ .Values.coreServices.awsGateway.image.repository }}:{{ .Values.coreServices.awsGateway.image.tag }}"
+        imagePullPolicy: {{ .Values.coreServices.awsGateway.image.pullPolicy }}
+        ports:
+        - name: grpc
+          containerPort: 50053
+          protocol: TCP
+        env:
+        - name: RABBITMQ_URL
+          value: {{ include "trade.rabbitmqUrl" . | quote }}
+        volumeMounts:
+        {{- if .Values.persistence.output.enabled }}
+        - name: output-volume
+          mountPath: /app/output
+        {{- end }}
+        resources:
+          {{- toYaml .Values.coreServices.awsGateway.resources | nindent 10 }}
+      volumes:
+      {{- if .Values.persistence.output.enabled }}
+      - name: output-volume
+        persistentVolumeClaim:
+          claimName: {{ include "trade.fullname" . }}-output-pvc
+      {{- end }}
+---
+{{- if .Values.coreServices.awsGateway.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "trade.fullname" . }}-aws-gateway
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: aws-gateway
+spec:
+  type: {{ .Values.coreServices.awsGateway.service.type }}
+  ports:
+  - name: grpc
+    port: {{ .Values.coreServices.awsGateway.service.port }}
+    targetPort: grpc
+    protocol: TCP
+  selector:
+    {{- include "trade.selectorLabels" . | nindent 4 }}
+    component: aws-gateway
+{{- end }}
+{{- end }}

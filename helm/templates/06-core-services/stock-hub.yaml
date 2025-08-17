@@ -1,0 +1,76 @@
+{{- if .Values.coreServices.stockHub.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "trade.fullname" . }}-stock-hub
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: stock-hub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "trade.selectorLabels" . | nindent 6 }}
+      component: stock-hub
+  template:
+    metadata:
+      labels:
+        {{- include "trade.selectorLabels" . | nindent 8 }}
+        component: stock-hub
+    spec:
+      initContainers:
+      - name: wait-for-rabbitmq
+        image: busybox:1.35
+        command: ['sh', '-c']
+        args:
+        - |
+          until nc -z {{ include "trade.fullname" . }}-rabbitmq 5672; do
+            echo "Waiting for RabbitMQ..."
+            sleep 5
+          done
+          echo "RabbitMQ is ready!"
+      containers:
+      - name: stock-hub
+        image: "{{ .Values.coreServices.stockHub.image.repository }}:{{ .Values.coreServices.stockHub.image.tag }}"
+        imagePullPolicy: {{ .Values.coreServices.stockHub.image.pullPolicy }}
+        ports:
+        - name: grpc
+          containerPort: 50052
+          protocol: TCP
+        env:
+        - name: RABBITMQ_URL
+          value: {{ include "trade.rabbitmqUrl" . | quote }}
+        volumeMounts:
+        {{- if .Values.persistence.output.enabled }}
+        - name: output-volume
+          mountPath: /app/output
+        {{- end }}
+        resources:
+          {{- toYaml .Values.coreServices.stockHub.resources | nindent 10 }}
+      volumes:
+      {{- if .Values.persistence.output.enabled }}
+      - name: output-volume
+        persistentVolumeClaim:
+          claimName: {{ include "trade.fullname" . }}-output-pvc
+      {{- end }}
+---
+{{- if .Values.coreServices.stockHub.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "trade.fullname" . }}-stock-hub
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: stock-hub
+spec:
+  type: {{ .Values.coreServices.stockHub.service.type }}
+  ports:
+  - name: grpc
+    port: {{ .Values.coreServices.stockHub.service.port }}
+    targetPort: grpc
+    protocol: TCP
+  selector:
+    {{- include "trade.selectorLabels" . | nindent 4 }}
+    component: stock-hub
+{{- end }}
+{{- end }}

@@ -1,0 +1,54 @@
+{{- if .Values.analyzers.tvanalyser.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "trade.fullname" . }}-tvanalyser
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: tvanalyser
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "trade.selectorLabels" . | nindent 6 }}
+      component: tvanalyser
+  template:
+    metadata:
+      labels:
+        {{- include "trade.selectorLabels" . | nindent 8 }}
+        component: tvanalyser
+    spec:
+      initContainers:
+      - name: wait-for-rabbitmq
+        image: busybox:1.35
+        command: ['sh', '-c']
+        args:
+        - |
+          until nc -z {{ include "trade.fullname" . }}-rabbitmq 5672; do
+            echo "Waiting for RabbitMQ..."
+            sleep 5
+          done
+          echo "RabbitMQ is ready!"
+      containers:
+      - name: tvanalyser
+        image: "{{ .Values.analyzers.tvanalyser.image.repository }}:{{ .Values.analyzers.tvanalyser.image.tag }}"
+        imagePullPolicy: {{ .Values.analyzers.tvanalyser.image.pullPolicy }}
+        env:
+        - name: RABBITMQ_URL
+          value: {{ include "trade.rabbitmqUrl" . | quote }}
+        - name: WEAVIATE_URL
+          value: {{ include "trade.weaviateUrl" . | quote }}
+        volumeMounts:
+        {{- if .Values.persistence.output.enabled }}
+        - name: output-volume
+          mountPath: /app/output
+        {{- end }}
+        resources:
+          {{- toYaml .Values.analyzers.tvanalyser.resources | nindent 10 }}
+      volumes:
+      {{- if .Values.persistence.output.enabled }}
+      - name: output-volume
+        persistentVolumeClaim:
+          claimName: {{ include "trade.fullname" . }}-output-pvc
+      {{- end }}
+{{- end }}

@@ -1,0 +1,74 @@
+{{- if .Values.weaviate.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "trade.fullname" . }}-weaviate
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: weaviate
+spec:
+  serviceName: {{ include "trade.fullname" . }}-weaviate
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "trade.selectorLabels" . | nindent 6 }}
+      component: weaviate
+  template:
+    metadata:
+      labels:
+        {{- include "trade.selectorLabels" . | nindent 8 }}
+        component: weaviate
+    spec:
+      containers:
+      - name: weaviate
+        image: "{{ .Values.weaviate.image.repository }}:{{ .Values.weaviate.image.tag }}"
+        imagePullPolicy: {{ .Values.weaviate.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: grpc
+          containerPort: 50051
+          protocol: TCP
+        env:
+        - name: QUERY_DEFAULTS_LIMIT
+          value: {{ .Values.weaviate.env.QUERY_DEFAULTS_LIMIT | quote }}
+        - name: AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED
+          value: {{ .Values.weaviate.env.AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED | quote }}
+        - name: PERSISTENCE_DATA_PATH
+          value: {{ .Values.weaviate.env.PERSISTENCE_DATA_PATH | quote }}
+        volumeMounts:
+        - name: weaviate-data
+          mountPath: /var/lib/weaviate
+        {{- if .Values.persistence.output.enabled }}
+        - name: output-volume
+          mountPath: /app/output
+        {{- end }}
+        resources:
+          {{- toYaml .Values.weaviate.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /v1/.well-known/live
+            port: http
+          initialDelaySeconds: 120
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /v1/.well-known/ready
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 5
+      volumes:
+      {{- if .Values.persistence.output.enabled }}
+      - name: output-volume
+        persistentVolumeClaim:
+          claimName: {{ include "trade.fullname" . }}-output-pvc
+      {{- end }}
+      - name: weaviate-data
+        {{- if .Values.persistence.weaviate.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ include "trade.fullname" . }}-weaviate-pvc
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+{{- end }}
