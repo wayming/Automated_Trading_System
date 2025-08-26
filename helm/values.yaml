@@ -3,7 +3,7 @@
 # Declare variables to be substituted into your templates.
 
 global:
-  imageRegistry: ""
+  imageRegistry: ghcr.io/wayming
   imagePullSecrets: []
   storageClass: ""
 
@@ -80,7 +80,7 @@ scrapers:
   ivscraper:
     enabled: true
     image:
-      repository: trade/ivscraper
+      repository: "{{ .Values.global.imageRegistry }}/ivscraper"
       tag: "latest"
       pullPolicy: IfNotPresent
     resources:
@@ -96,7 +96,7 @@ scrapers:
   tvscraper:
     enabled: true
     image:
-      repository: trade/tvscraper
+      repository: "{{ .Values.global.imageRegistry }}/tvscraper"
       tag: "latest"
       pullPolicy: IfNotPresent
     resources:
@@ -114,7 +114,7 @@ analyzers:
   ivanalyser:
     enabled: true
     image:
-      repository: trade/ivanalyser
+      repository: "{{ .Values.global.imageRegistry }}/ivanalyser"
       tag: "latest"
       pullPolicy: IfNotPresent
     resources:
@@ -128,7 +128,7 @@ analyzers:
   tvanalyser:
     enabled: true
     image:
-      repository: trade/tvanalyser
+      repository: "{{ .Values.global.imageRegistry }}/tvanalyser"
       tag: "latest"
       pullPolicy: IfNotPresent
     resources:
@@ -144,7 +144,7 @@ coreServices:
   mockExecutor:
     enabled: true
     image:
-      repository: trade/mock_executor
+      repository: "{{ .Values.global.imageRegistry }}/mock_executor"
       tag: "latest"
       pullPolicy: IfNotPresent
     service:
@@ -161,7 +161,7 @@ coreServices:
   stockHub:
     enabled: true
     image:
-      repository: trade/stock_hub
+      repository: "{{ .Values.global.imageRegistry }}/stock_hub"
       tag: "latest"
       pullPolicy: IfNotPresent
     service:
@@ -178,7 +178,7 @@ coreServices:
   awsGateway:
     enabled: true
     image:
-      repository: trade/aws_gateway
+      repository: "{{ .Values.global.imageRegistry }}/aws_gateway"
       tag: "latest"
       pullPolicy: IfNotPresent
     service:
@@ -195,7 +195,7 @@ coreServices:
   newsStore:
     enabled: true
     image:
-      repository: trade/news_store
+      repository: "{{ .Values.global.imageRegistry }}/news_store"
       tag: "latest"
       pullPolicy: IfNotPresent
     resources:

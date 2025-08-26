@@ -13,7 +13,7 @@ scrapers:
   ivscraper:
     enabled: false
   tvscraper:
-    enabled: false
+    enabled: true
 
 # Disable all analyzers
 analyzers:
