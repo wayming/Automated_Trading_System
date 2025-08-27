@@ -23,40 +23,36 @@ spec:
         image: busybox:1.35
         command: ['sh', '-c']
         args:
-        - |
-          until nc -z {{ include "trade.fullname" . }}-rabbitmq 5672; do
-            echo "Waiting for RabbitMQ..."
-            sleep 5
-          done
-          echo "RabbitMQ is ready!"
+          - |
+            until nc -z {{ include "trade.fullname" . }}-rabbitmq 5672; do
+              echo "Waiting for RabbitMQ..."
+              sleep 5
+            done
+            echo "RabbitMQ is ready!"
       containers:
-      - name: xvfb
-        image: alpine:latest
-        command: ['sh', '-c']
-        args:
-        - |
-          apk add --no-cache xvfb
-          Xvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset
-        env:
-        - name: DISPLAY
-          value: {{ .Values.scrapers.ivscraper.env.DISPLAY | quote }}
       - name: ivscraper
-        image: "{{ .Values.scrapers.ivscraper.image.repository }}:{{ .Values.scrapers.ivscraper.image.tag }}"
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.scrapers.ivscraper.image.repository }}:{{ .Values.scrapers.ivscraper.image.tag }}"
         imagePullPolicy: {{ .Values.scrapers.ivscraper.image.pullPolicy }}
+        command: ["sh", "-c"]
+        args:
+          - |
+            Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp &
+            export DISPLAY=:99
+            python -m news_scraper.scraper_investing
         env:
-        - name: DISPLAY
-          value: {{ .Values.scrapers.ivscraper.env.DISPLAY | quote }}
-        - name: RABBITMQ_URL
-          value: {{ include "trade.rabbitmqUrl" . | quote }}
+          - name: DISPLAY
+            value: ":99"
+          - name: RABBITMQ_URL
+            value: {{ include "trade.rabbitmqUrl" . | quote }}
         volumeMounts:
-        {{- if .Values.persistence.output.enabled }}
-        - name: output-volume
-          mountPath: /app/output
-        {{- end }}
+          {{- if .Values.persistence.output.enabled }}
+          - name: output-volume
+            mountPath: /app/output
+          {{- end }}
         resources:
           {{- toYaml .Values.scrapers.ivscraper.resources | nindent 10 }}
-      volumes:
       {{- if .Values.persistence.output.enabled }}
+      volumes:
       - name: output-volume
         persistentVolumeClaim:
           claimName: {{ include "trade.fullname" . }}-output-pvc

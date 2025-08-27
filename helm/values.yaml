@@ -3,7 +3,7 @@
 # Declare variables to be substituted into your templates.
 
 global:
-  imageRegistry: ghcr.io/wayming
+  imageRegistry: ghcr.io/wayming/trade
   imagePullSecrets: []
   storageClass: ""
 
@@ -95,8 +95,10 @@ scrapers:
   
   tvscraper:
     enabled: true
+    tradeViewUser: ""
+    tradeViewPass: ""
     image:
-      repository: "{{ .Values.global.imageRegistry }}/tvscraper"
+      repository: tvscraper
       tag: "latest"
       pullPolicy: IfNotPresent
     resources:
