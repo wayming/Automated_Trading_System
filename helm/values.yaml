@@ -36,7 +36,7 @@ rabbitmq:
   image:
     repository: rabbitmq
     tag: "3-management"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   service:
     type: ClusterIP
     port: 5672
@@ -58,7 +58,7 @@ weaviate:
   image:
     repository: semitechnologies/weaviate
     tag: "1.21.2"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   service:
     type: ClusterIP
     port: 8080
@@ -82,7 +82,7 @@ scrapers:
     image:
       repository: "{{ .Values.global.imageRegistry }}/ivscraper"
       tag: "latest"
-      pullPolicy: IfNotPresent
+      pullPolicy: Always
     resources:
       limits:
         cpu: 500m
@@ -100,7 +100,7 @@ scrapers:
     image:
       repository: tvscraper
       tag: "latest"
-      pullPolicy: IfNotPresent
+      pullPolicy: Always
     resources:
       limits:
         cpu: 500m
@@ -118,7 +118,7 @@ analyzers:
     image:
       repository: "{{ .Values.global.imageRegistry }}/ivanalyser"
       tag: "latest"
-      pullPolicy: IfNotPresent
+      pullPolicy: Always
     resources:
       limits:
         cpu: 500m
@@ -132,7 +132,7 @@ analyzers:
     image:
       repository: "{{ .Values.global.imageRegistry }}/tvanalyser"
       tag: "latest"
-      pullPolicy: IfNotPresent
+      pullPolicy: Always
     resources:
       limits:
         cpu: 500m
@@ -148,7 +148,7 @@ coreServices:
     image:
       repository: "{{ .Values.global.imageRegistry }}/mock_executor"
       tag: "latest"
-      pullPolicy: IfNotPresent
+      pullPolicy: Always
     service:
       type: ClusterIP
       port: 50051
@@ -165,7 +165,7 @@ coreServices:
     image:
       repository: "{{ .Values.global.imageRegistry }}/stock_hub"
       tag: "latest"
-      pullPolicy: IfNotPresent
+      pullPolicy: Always
     service:
       type: ClusterIP
       port: 50052
@@ -182,7 +182,7 @@ coreServices:
     image:
       repository: "{{ .Values.global.imageRegistry }}/aws_gateway"
       tag: "latest"
-      pullPolicy: IfNotPresent
+      pullPolicy: Always
     service:
       type: ClusterIP
       port: 50053
@@ -199,7 +199,7 @@ coreServices:
     image:
       repository: "{{ .Values.global.imageRegistry }}/news_store"
       tag: "latest"
-      pullPolicy: IfNotPresent
+      pullPolicy: Always
     resources:
       limits:
         cpu: 500m
@@ -215,4 +215,4 @@ initContainers:
     image:
       repository: busybox
       tag: "1.35"
-      pullPolicy: IfNotPresent
+      pullPolicy: Always
