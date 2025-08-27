@@ -96,3 +96,7 @@ Weaviate connection URL
 {{- define "trade.weaviateUrl" -}}
 {{- printf "http://%s-weaviate:8080" (include "trade.fullname" .) }}
 {{- end }}
+
+{{- define "trade.rabbitmqHost" -}}
+{{- printf "%s-rabbitmq" (include "trade.fullname" .) }}
+{{- end }}

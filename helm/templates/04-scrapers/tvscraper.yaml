@@ -52,8 +52,8 @@ spec:
             secretKeyRef:
               name: {{ include "trade.fullname" . }}-tvscraper-secret
               key: TRADE_VIEW_PASS
-        - name: RABBITMQ_URL
-          value: {{ include "trade.rabbitmqUrl" . | quote }}
+        - name: RABBITMQ_HOST
+          value: {{ include "trade.rabbitmqHost" . | quote }}
         volumeMounts:
           {{- if .Values.persistence.output.enabled }}
           - name: output-volume

@@ -203,8 +203,9 @@ def rabbit_mq_connect() -> pika.BlockingConnection:
     while True:
         try:
             print("[Scraper_Trading_View] Connecting to RabbitMQ...")
+            host = os.getenv("RABBITMQ_HOST", "rabbitmq")
             rabbit_connection = pika.BlockingConnection(
-                pika.ConnectionParameters(host="rabbitmq")
+                pika.ConnectionParameters(host=host)
             )
             print("[Scraper_Trading_View] Connected to RabbitMQ.")
             return rabbit_connection

@@ -29,6 +29,7 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix # Show chrome browser
     environment:
       - DISPLAY=$DISPLAY  # Show chrome browser
+      - RABBITMQ_HOST=rabbitmq
     env_file:
       - .env
     networks:
