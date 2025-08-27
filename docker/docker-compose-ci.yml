@@ -3,7 +3,7 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.scraper
-    image: ghcr.io/wayming/trade:latest
+    image: ${REGISTRY}/${IMAGE_NAME}/ivscraper:latest
     container_name: python-scraper-iv
     volumes:
       - ../output:/app/output  # Mount the current directory to /app in the container
@@ -26,7 +26,7 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.scraper
-    image: ghcr.io/wayming/trade:latest
+    image: ${REGISTRY}/${IMAGE_NAME}/tvscraper:latest
     container_name: python-scraper-tv
     volumes:
       - ../output:/app/output  # Mount the current directory to /app in the container
@@ -68,7 +68,7 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.analyser
-    image: ghcr.io/wayming/trade:latest
+    image: ${REGISTRY}/${IMAGE_NAME}/ivanalyser:latest
     environment:
       - AWS_GATEWAY_ENDPOINT=aws_gateway:50053
     volumes:
@@ -86,7 +86,7 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.analyser
-    image: ghcr.io/wayming/trade:latest
+    image: ${REGISTRY}/${IMAGE_NAME}/tvanalyser:latest
     environment:
       - AWS_GATEWAY_ENDPOINT=aws_gateway:50053
     volumes:
@@ -106,7 +106,7 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.mock.executor
-    image: ghcr.io/wayming/trade:latest
+    image: ${REGISTRY}/${IMAGE_NAME}/mock_executor:latest
     ports:
       - "50051:50051"
     volumes:
@@ -121,7 +121,7 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.stock.hub
-    image: ghcr.io/wayming/trade:latest
+    image: ${REGISTRY}/${IMAGE_NAME}/stock_hub:latest
     ports:
       - "50052:50052"
     volumes:
@@ -133,7 +133,7 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.aws.gateway
-    image: ghcr.io/wayming/trade:latest
+    image: ${REGISTRY}/${IMAGE_NAME}/aws_gateway:latest
     ports:
       - "50053:50053"
     volumes:
@@ -145,7 +145,7 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.news.store
-    image: ghcr.io/wayming/trade:latest
+    image: ${REGISTRY}/${IMAGE_NAME}/news_store:latest
     volumes:
       - ../output:/app/output  # Mount volume
     environment:

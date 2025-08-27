@@ -20,10 +20,6 @@ minikube start --cpus=4 --memory=8192 --driver=docker
 # 验证
 kubectl get nodes
 
-# 启用插件
-minikube addons enable ingress
-minikube addons enable metrics-server
-
 # 安装 helm
 curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
