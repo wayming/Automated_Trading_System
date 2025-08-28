@@ -51,7 +51,8 @@ RUN pip install --no-cache-dir \
     undetected-chromedriver \
     requests \
     beautifulsoup4 \
-    pika
+    pika \
+    prometheus_client
 
 RUN useradd -m -u 1000 appuser
 

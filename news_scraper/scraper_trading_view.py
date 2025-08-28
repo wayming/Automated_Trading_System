@@ -16,11 +16,18 @@ from selenium.webdriver.chrome.options import Options
 
 import undetected_chromedriver as uc
 
+from prometheus_client import start_http_server, Counter
+from prometheus_client import Gauge
 from .lru_cache import LRUCache
 from .interface import NewsScraper
 import pika
 
 QUEUE_TV_ARTICLES = "tv_articles"
+
+SCRAPE_COUNT = Counter("scraper_runs_total", "Number of scraper runs")
+SCRAPE_ERRORS = Counter("scraper_errors_total", "Number of errors during scraping")
+LAST_SCRAPE = Gauge("scraper_last_scrape_timestamp", "Last scrape time (unix)")
+
 class TradingViewScraper(NewsScraper):
     def __init__(
             self,
@@ -204,10 +211,11 @@ class TradingViewScraper(NewsScraper):
             if new_articles_found == 0:
                 print("\nNo new articles found in this scan")
 
+            LAST_SCRAPE.set_to_current_time()
         except Exception as e:
             self.driver.save_screenshot(f"output/investing_error.png")
             print(f"An error occurred when reading new messages: {e}")
-
+            SCRAPE_ERRORS.inc()
         return file_paths
 
 def rabbit_mq_connect() -> pika.BlockingConnection:
@@ -241,6 +249,8 @@ def main():
     if not args.login:
         mq_conn = rabbit_mq_connect()
 
+    start_http_server(8000)
+
     scraper = scraper = TradingViewScraper(
             username=USERNAME,
             password=PASSWORD,
@@ -264,6 +274,7 @@ def main():
 
         articles = scraper.fetch_news(limit=5)
         print(articles)
+        SCRAPE_COUNT.inc()
         time.sleep(10)
 
 if __name__ == "__main__":

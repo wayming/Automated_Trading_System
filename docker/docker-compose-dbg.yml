@@ -85,6 +85,7 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"  # Management UI
+      - "15692:15692"  # Prometheus metrics
     restart: always
     # environment:
     #   - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit heartbeat 600 channel_operation_timeout 600000 log_levels [{connection,debug},{channel,debug}]
@@ -175,6 +176,33 @@ services:
       - ../output:/app/output  # Mount volume
     networks:
       - scraper-network
+
+# 监控部分
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - scraper-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - scraper-network
+    depends_on:
+      prometheus:
+        condition: service_started
+    restart: unless-stopped
 
 networks:
   scraper-network:
