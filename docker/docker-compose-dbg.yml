@@ -17,6 +17,41 @@ services:
       rabbitmq:
         condition: service_healthy # RabbitMQ begin to accept connections
 
+  selenium-hub:
+    image: selenium/hub:4.35.0
+    container_name: selenium-hub
+    ports:
+      - "4444:4444"
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4444/wd/hub/status"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - scraper-network
+
+  chrome-node:
+    image: selenium/node-chrome:4.35.0
+    container_name: selenium-node-chrome
+    depends_on:
+      - selenium-hub
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - SE_NODE_GRID_URL=http://selenium-hub:4444
+      - SE_NODE_MAX_SESSIONS=1
+      - SE_NODE_OPTS="--no-sandbox --disable-gpu --headless=new --disable-dev-shm-usage --window-size=1280,1024"
+    shm_size: "2g"
+    volumes:
+      - /dev/shm:/dev/shm
+    networks:
+      - scraper-network
+
   tvscraper:
     build:
       context: ../  # Set build context to project root
@@ -24,17 +59,24 @@ services:
     container_name: python-scraper-tv
     volumes:
       - ../output:/app/output  # Mount the current directory to /app in the container
-      - /tmp/.X11-unix:/tmp/.X11-unix # Show chrome browser
+      # - /tmp/.X11-unix:/tmp/.X11-unix # Show chrome browser
     environment:
-      - DISPLAY=$DISPLAY  # Show chrome browser
+      # - DISPLAY=$DISPLAY  # Show chrome browser
       - RABBITMQ_HOST=rabbitmq
       - TRADE_VIEW_USER=${TRADE_VIEW_USER}
       - TRADE_VIEW_PASS=${TRADE_VIEW_PASS}
+      - SELENIUM_HUB_URL=http://selenium-hub:4444/wd/hub
+    ports:
+      - "9222:9222"
     networks:
       - scraper-network
     restart: always  # Restart container if it crashes
     command: python -m news_scraper.scraper_trading_view
     depends_on:
+      selenium-hub:
+        condition: service_healthy
+      chrome-node:
+        condition: service_started
       rabbitmq:
         condition: service_healthy # RabbitMQ begin to accept connections
 

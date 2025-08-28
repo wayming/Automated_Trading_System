@@ -9,6 +9,11 @@ from typing import List
 from selenium.webdriver.common.by  import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support    import expected_conditions as EC
+from selenium.webdriver import Remote as RemoteWebDriver
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+
 import undetected_chromedriver as uc
 
 from .lru_cache import LRUCache
@@ -44,7 +49,13 @@ class TradingViewScraper(NewsScraper):
 
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-gpu")
-        return uc.Chrome(options=options)
+
+        hub_url = os.getenv("SELENIUM_HUB_URL", "http://selenium-hub:4444/wd/hub")
+        driver = RemoteWebDriver(
+            command_executor=hub_url,
+            options=options
+        )
+        return driver
 
     def _save_cookies(self):
         with open(self.cookies_path, "wb") as file:
@@ -206,7 +217,6 @@ def rabbit_mq_connect() -> pika.BlockingConnection:
             host = os.getenv("RABBITMQ_HOST", "rabbitmq")
             username = os.getenv("RABBITMQ_DEFAULT_USER", "admin")
             password = os.getenv("RABBITMQ_DEFAULT_PASS", "password")
-            print(f"[Scraper_Trading_View] Using RabbitMQ host: {host}, user: {username}, password: {password}")
             rabbit_connection = pika.BlockingConnection(
                 pika.ConnectionParameters(host=host, credentials=pika.PlainCredentials(username, password))
             )
