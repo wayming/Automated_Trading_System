@@ -9,8 +9,6 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix # Show chrome browser
     environment:
       - DISPLAY=$DISPLAY  # Show chrome browser
-    env_file:
-      - .env
     networks:
       - scraper-network
     restart: always  # Restart container if it crashes
@@ -30,8 +28,8 @@ services:
     environment:
       - DISPLAY=$DISPLAY  # Show chrome browser
       - RABBITMQ_HOST=rabbitmq
-    env_file:
-      - .env
+      - TRADE_VIEW_USER=${TRADE_VIEW_USER}
+      - TRADE_VIEW_PASS=${TRADE_VIEW_PASS}
     networks:
       - scraper-network
     restart: always  # Restart container if it crashes
@@ -51,6 +49,9 @@ services:
     volumes:
       - ../rabbitmq/rabbitmq_data:/var/lib/rabbitmq
       - ../rabbitmq/rabbitmq_logs:/var/log/rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=password
     networks:
       - scraper-network
     healthcheck:
@@ -63,10 +64,9 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.analyser
-    env_file:
-      - .env
     environment:
       - AWS_GATEWAY_ENDPOINT=aws_gateway:50053
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
     volumes:
       - ../output:/app/output  # Mount the current directory to /app in the container
     command: python -m news_scraper.analyser_investing
@@ -82,10 +82,9 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.analyser
-    env_file:
-      - .env
     environment:
       - AWS_GATEWAY_ENDPOINT=aws_gateway:50053
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
     volumes:
       - ../output:/app/output  # Mount volume
     command: python -m news_scraper.analyser_trading_view
@@ -128,8 +127,6 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.aws.gateway
-    env_file:
-      - .env
     ports:
       - "50053:50053"
     volumes:

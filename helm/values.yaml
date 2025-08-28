@@ -49,8 +49,9 @@ rabbitmq:
       cpu: 250m
       memory: 256Mi
   env:
-    RABBITMQ_DEFAULT_USER: "admin"
-    RABBITMQ_DEFAULT_PASS: "password"
+    # Use default guest/guest, do not create new user
+    # RABBITMQ_DEFAULT_USER: "admin"
+    # RABBITMQ_DEFAULT_PASS: "password"
 
 # Weaviate Configuration
 weaviate:

@@ -1,4 +1,12 @@
-kubectl rollout restart deployment -n default
+# kubectl rollout restart deployment -n default
+
+
+# kubectl scale deployment --all --replicas=0 -n default
+
+# kubectl delete pods --all
+
+
+helm template trade . -f values.yaml > out.yaml
 
 helm upgrade --install trade . \
   --set scrapers.tvscraper.tradeViewUser=${TRADE_VIEW_USER} \

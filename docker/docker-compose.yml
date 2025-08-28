@@ -8,8 +8,6 @@ services:
       - ../output:/app/output  # Mount the current directory to /app in the container
     environment:
       - DISPLAY=:99  # If running headlessly or using Xvfb
-    env_file:
-      - .env
     networks:
       - scraper-network
     restart: always  # Restart container if it crashes
@@ -32,8 +30,8 @@ services:
       - ../output:/app/output  # Mount the current directory to /app in the container
     environment:
       - DISPLAY=:99  # If running headlessly or using Xvfb
-    env_file:
-      - .env
+      - TRADE_VIEW_USER=${TRADE_VIEW_USER}
+      - TRADE_VIEW_PASS=${TRADE_VIEW_PASS}
     networks:
       - scraper-network
     restart: always  # Restart container if it crashes
@@ -70,10 +68,9 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.analyser
-    env_file:
-      - .env
     environment:
       - AWS_GATEWAY_ENDPOINT=aws_gateway:50053
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
     volumes:
       - ../output:/app/output  # Mount the current directory to /app in the container
     command: python -m news_scraper.analyser_investing
@@ -89,10 +86,9 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.analyser
-    env_file:
-      - .env
     environment:
       - AWS_GATEWAY_ENDPOINT=aws_gateway:50053
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
     volumes:
       - ../output:/app/output  # Mount volume
     command: python -m news_scraper.analyser_trading_view
@@ -135,8 +131,6 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.aws.gateway
-    env_file:
-      - .env
     ports:
       - "50053:50053"
     volumes:
