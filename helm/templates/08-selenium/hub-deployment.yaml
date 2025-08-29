@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "trade.fullname" . }}-selenium-hub
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: selenium-hub
+spec:
+  replicas: {{ .Values.selenium.hub.replicas }}
+  selector:
+    matchLabels:
+      app: {{ include "trade.fullname" . }}
+      component: selenium-hub
+  template:
+    metadata:
+      labels:
+        app: {{ include "trade.fullname" . }}
+        component: selenium-hub
+    spec:
+      containers:
+        - name: hub
+          image: {{ .Values.selenium.hub.image }}
+          ports:
+            - containerPort: 4444
+          env:
+            - name: SE_EVENT_BUS_HOST
+              value: {{ include "trade.fullname" . }}-selenium-hub
+            - name: SE_EVENT_BUS_PUBLISH_PORT
+              value: "4442"
+            - name: SE_EVENT_BUS_SUBSCRIBE_PORT
+              value: "4443"
+          readinessProbe:
+            httpGet:
+              path: /wd/hub/status
+              port: 4444
+            initialDelaySeconds: 5
+            periodSeconds: 5

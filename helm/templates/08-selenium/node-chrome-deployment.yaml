@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "trade.fullname" . }}-selenium-node-chrome
+  labels:
+    {{- include "trade.labels" . | nindent 4 }}
+    component: selenium-node-chrome
+spec:
+  replicas: {{ .Values.selenium.nodeChrome.replicas }}
+  selector:
+    matchLabels:
+      app: {{ include "trade.fullname" . }}
+      component: selenium-node-chrome
+  template:
+    metadata:
+      labels:
+        app: {{ include "trade.fullname" . }}
+        component: selenium-node-chrome
+    spec:
+      containers:
+        - name: chrome
+          image: {{ .Values.selenium.nodeChrome.image }}
+          env:
+            - name: SE_EVENT_BUS_HOST
+              value: {{ include "trade.fullname" . }}-selenium-hub
+            - name: SE_EVENT_BUS_PUBLISH_PORT
+              value: "4442"
+            - name: SE_EVENT_BUS_SUBSCRIBE_PORT
+              value: "4443"
+            - name: SE_NODE_GRID_URL
+              value: http://{{ include "trade.fullname" . }}-selenium-hub:4444
+            - name: SE_NODE_MAX_SESSIONS
+              value: "1"
+            - name: SE_NODE_OPTS
+              value: "--no-sandbox --disable-gpu --headless=new --disable-dev-shm-usage --window-size=1280,1024"
+          volumeMounts:
+            - mountPath: /dev/shm
+              name: dshm
+          resources:
+            {{- toYaml .Values.selenium.nodeChrome.resources | nindent 12 }}
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.selenium.nodeChrome.shmSize }}

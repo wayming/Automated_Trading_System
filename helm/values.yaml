@@ -217,3 +217,14 @@ initContainers:
       repository: busybox
       tag: "1.35"
       pullPolicy: Always
+
+selenium:
+  hub:
+    image: selenium/hub:4.35.0
+    replicas: 1
+    resources: {}
+  nodeChrome:
+    image: selenium/node-chrome:4.35.0
+    replicas: 2
+    shmSize: 2Gi
+    resources: {}
