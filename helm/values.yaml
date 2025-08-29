@@ -50,8 +50,8 @@ rabbitmq:
       memory: 256Mi
   env:
     # Use default guest/guest, do not create new user
-    # RABBITMQ_DEFAULT_USER: "admin"
-    # RABBITMQ_DEFAULT_PASS: "password"
+    RABBITMQ_DEFAULT_USER: "admin"
+    RABBITMQ_DEFAULT_PASS: "password"
 
 # Weaviate Configuration
 weaviate:
@@ -98,6 +98,8 @@ scrapers:
     enabled: true
     tradeViewUser: ""
     tradeViewPass: ""
+    mqUser: "{{ .Values.rabbitmq.env.RABBITMQ_DEFAULT_USER }}"
+    mqPass: "{{ .Values.rabbitmq.env.RABBITMQ_DEFAULT_PASS }}"
     image:
       repository: tvscraper
       tag: "latest"
@@ -223,6 +225,12 @@ selenium:
     image: selenium/hub:4.35.0
     replicas: 1
     resources: {}
+    serviceName: selenium-hub
+    service:
+      port: 4444
+      env:
+        - name: VNC_PASSWORD
+          value: "secret"
   nodeChrome:
     image: selenium/node-chrome:4.35.0
     replicas: 2

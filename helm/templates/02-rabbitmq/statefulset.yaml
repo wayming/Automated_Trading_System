@@ -30,6 +30,11 @@ spec:
         - name: management
           containerPort: 15672
           protocol: TCP
+        env:
+          - name: RABBITMQ_DEFAULT_USER
+            value: {{ .Values.rabbitmq.env.RABBITMQ_DEFAULT_USER }}
+          - name: RABBITMQ_DEFAULT_PASS
+            value: {{ .Values.rabbitmq.env.RABBITMQ_DEFAULT_PASS }}
         volumeMounts:
         - name: rabbitmq-data
           mountPath: /var/lib/rabbitmq

@@ -223,8 +223,8 @@ def rabbit_mq_connect() -> pika.BlockingConnection:
         try:
             print("[Scraper_Trading_View] Connecting to RabbitMQ...")
             host = os.getenv("RABBITMQ_HOST", "rabbitmq")
-            username = os.getenv("RABBITMQ_DEFAULT_USER", "admin")
-            password = os.getenv("RABBITMQ_DEFAULT_PASS", "password")
+            username = os.getenv("RABBITMQ_USER", "admin")
+            password = os.getenv("RABBITMQ_PASS", "password")
             rabbit_connection = pika.BlockingConnection(
                 pika.ConnectionParameters(host=host, credentials=pika.PlainCredentials(username, password))
             )

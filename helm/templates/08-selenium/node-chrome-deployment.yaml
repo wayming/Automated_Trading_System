@@ -28,7 +28,7 @@ spec:
             - name: SE_EVENT_BUS_SUBSCRIBE_PORT
               value: "4443"
             - name: SE_NODE_GRID_URL
-              value: http://{{ include "trade.fullname" . }}-selenium-hub:4444
+              value: http://{{ include "trade.fullname" . }}-selenium-hub:{{ .Values.selenium.hub.service.port }}
             - name: SE_NODE_MAX_SESSIONS
               value: "1"
             - name: SE_NODE_OPTS

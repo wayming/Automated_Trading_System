@@ -100,3 +100,10 @@ Weaviate connection URL
 {{- define "trade.rabbitmqHost" -}}
 {{- printf "%s-rabbitmq" (include "trade.fullname" .) }}
 {{- end }}
+
+{{/* 
+Return the Selenium Hub URL based on values.yaml
+*/}}
+{{- define "trade.seleniumHubURL" -}}
+http://{{ include "trade.fullname" . }}-{{ .Values.selenium.hub.serviceName }}:{{ .Values.selenium.hub.service.port }}/wd/hub
+{{- end -}}

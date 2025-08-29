@@ -5,6 +5,7 @@
 
 # kubectl delete pods --all
 
+# helm uninstall tsrade .
 
 helm template trade . -f values.yaml > out.yaml
 

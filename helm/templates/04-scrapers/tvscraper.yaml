@@ -42,6 +42,8 @@ spec:
         env:
         - name: DISPLAY
           value: {{ .Values.scrapers.tvscraper.env.DISPLAY | quote }}
+        - name: SELENIUM_HUB_URL
+          value: {{ include "trade.seleniumHubURL" . | quote }}
         - name: TRADE_VIEW_USER
           valueFrom:
             secretKeyRef:
@@ -54,6 +56,10 @@ spec:
               key: TRADE_VIEW_PASS
         - name: RABBITMQ_HOST
           value: {{ include "trade.rabbitmqHost" . | quote }}
+        - name: RABBITMQ_USER
+          value: {{ .Values.scrapers.tvscraper.mqUser | quote }}
+        - name: RABBITMQ_PASS
+          value: {{ .Values.scrapers.tvscraper.mqPass | quote }}
         volumeMounts:
           {{- if .Values.persistence.output.enabled }}
           - name: output-volume
