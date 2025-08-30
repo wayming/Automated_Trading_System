@@ -475,6 +475,10 @@ spec:
           value: "amqp://admin:password@trade-rabbitmq:5672/"
         - name: WEAVIATE_URL
           value: "http://trade-weaviate:8080"
+        - name: RABBITMQ_USER
+          value: "admin"
+        - name: RABBITMQ_PASS
+          value: "password"
         volumeMounts:
         - name: output-volume
           mountPath: /app/output
@@ -485,6 +489,7 @@ spec:
           requests:
             cpu: 250m
             memory: 512Mi
+        command: ["sh", "-c", "python -m news_scraper.analyser_investing"]
       volumes:
       - name: output-volume
         persistentVolumeClaim:
@@ -536,6 +541,10 @@ spec:
           value: "amqp://admin:password@trade-rabbitmq:5672/"
         - name: WEAVIATE_URL
           value: "http://trade-weaviate:8080"
+        - name: RABBITMQ_USER
+          value: "admin"
+        - name: RABBITMQ_PASS
+          value: "password"
         volumeMounts:
         - name: output-volume
           mountPath: /app/output
@@ -546,6 +555,7 @@ spec:
           requests:
             cpu: 250m
             memory: 512Mi
+        command: ["sh", "-c", "python -m news_scraper.analyser_trading_view"]
       volumes:
       - name: output-volume
         persistentVolumeClaim:

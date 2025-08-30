@@ -34,8 +34,8 @@ spec:
         image: "{{ .Values.global.imageRegistry }}/{{ .Values.analysers.tvanalyser.image.repository }}:{{ .Values.analysers.tvanalyser.image.tag }}"
         imagePullPolicy: {{ .Values.analysers.tvanalyser.image.pullPolicy }}
         env:
-        - name: RABBITMQ_URL
-          value: {{ include "trade.rabbitmqUrl" . | quote }}
+        - name: RABBITMQ_HOST
+          value: {{ include "trade.rabbitmqHost" . | quote }}
         - name: WEAVIATE_URL
           value: {{ include "trade.weaviateUrl" . | quote }}
         - name: RABBITMQ_USER

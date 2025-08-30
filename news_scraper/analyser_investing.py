@@ -170,7 +170,7 @@ def mq_connect(name) -> pika.BlockingConnection:
         ))
     print("[Analyser_Investing] Connected to RabbitMQ.")
     channel = connection.channel()
-    channel.queue_declare(queue=QUEUE_IV_ARTICLES)
+    channel.queue_declare(queue=QUEUE_IV_ARTICLES, durable=True)
     # Graceful shutdown handler
     def signal_handler(sig, frame):
         print("[Analyser_Investing] Gracefully shutting down...")
