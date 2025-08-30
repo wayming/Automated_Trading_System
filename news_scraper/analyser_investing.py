@@ -159,15 +159,21 @@ def trade_on_score(analyse_result: str, executor: TradeExecutor):
         logger.info("\nNo short_term analysis available")
 
 def mq_connect(name) -> pika.BlockingConnection:
+    print("[Analyser_Investing] Connecting to RabbitMQ...")
+    host = os.getenv("RABBITMQ_HOST", "rabbitmq")
+    username = os.getenv("RABBITMQ_USER", "admin")
+    password = os.getenv("RABBITMQ_PASS", "password")
     connection = pika.BlockingConnection(pika.ConnectionParameters(
-            host='rabbitmq',
-            heartbeat=600
+            host=host,
+            heartbeat=600,
+            credentials=pika.PlainCredentials(username, password)
         ))
+    print("[Analyser_Investing] Connected to RabbitMQ.")
     channel = connection.channel()
     channel.queue_declare(queue=QUEUE_IV_ARTICLES)
     # Graceful shutdown handler
     def signal_handler(sig, frame):
-        logger.info('Gracefully shutting down...')
+        print("[Analyser_Investing] Gracefully shutting down...")
         channel.stop_consuming()
         connection.close()
 
@@ -180,9 +186,14 @@ def main():
     conn = mq_connect(QUEUE_IV_ARTICLES)
     executor = MockTradeExecutorProxy()
     this_dir = Path(__file__).parent
+    prompt_path=this_dir/"prompt.txt"
+    if os.getenv("DEEPSEEK_API_KEY") is None:
+        raise ValueError("DEEPSEEK_API_KEY is not set")
+    if not os.path.exists(prompt_path):
+        raise ValueError(f"Prompt file not found: {prompt_path}")
     analyser = InvestingAnalyser(
         api_key=os.getenv("DEEPSEEK_API_KEY"),
-        prompt_path=this_dir/"prompt.txt",
+        prompt_path=prompt_path,
     )
 
     logger.info("[Analyser_Investing] Waiting for messages...")

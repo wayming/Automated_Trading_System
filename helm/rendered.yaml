@@ -314,7 +314,7 @@ spec:
             echo "RabbitMQ is ready!"
       containers:
       - name: ivscraper
-        image: "ghcr.io/wayming/trade/{{ .Values.global.imageRegistry }}/ivscraper:latest"
+        image: "ghcr.io/wayming/trade/ivscraper:latest"
         imagePullPolicy: Always
         command: ["sh", "-c"]
         args:
@@ -327,6 +327,10 @@ spec:
             value: ":99"
           - name: RABBITMQ_URL
             value: "amqp://admin:password@trade-rabbitmq:5672/"
+          - name: RABBITMQ_USER
+            value: "admin"
+          - name: RABBITMQ_PASS
+            value: "password"
         volumeMounts:
           - name: output-volume
             mountPath: /app/output
@@ -381,7 +385,7 @@ spec:
             echo "RabbitMQ is ready!"
       containers:
       - name: tvscraper
-        image: "{{ .Values.global.imageRegistry }}/tvscraper:latest"
+        image: "ghcr.io/wayming/trade/tvscraper:latest"
         imagePullPolicy: Always
         command: ["sh", "-c"]
         args:
@@ -407,9 +411,9 @@ spec:
         - name: RABBITMQ_HOST
           value: "trade-rabbitmq"
         - name: RABBITMQ_USER
-          value: "{{ .Values.rabbitmq.env.RABBITMQ_DEFAULT_USER }}"
+          value: "admin"
         - name: RABBITMQ_PASS
-          value: "{{ .Values.rabbitmq.env.RABBITMQ_DEFAULT_PASS }}"
+          value: "password"
         volumeMounts:
           - name: output-volume
             mountPath: /app/output
@@ -464,7 +468,7 @@ spec:
           echo "RabbitMQ is ready!"
       containers:
       - name: ivanalyser
-        image: "{{ .Values.global.imageRegistry }}/ivanalyser:latest"
+        image: "ghcr.io/wayming/trade/ivanalyser:latest"
         imagePullPolicy: Always
         env:
         - name: RABBITMQ_URL
@@ -586,7 +590,7 @@ spec:
           echo "RabbitMQ is ready!"
       containers:
       - name: aws-gateway
-        image: "{{ .Values.global.imageRegistry }}/aws_gateway:latest"
+        image: "ghcr.io/wayming/trade/aws_gateway:latest"
         imagePullPolicy: Always
         ports:
         - name: grpc
@@ -649,7 +653,7 @@ spec:
           echo "RabbitMQ is ready!"
       containers:
       - name: mock-executor
-        image: "{{ .Values.global.imageRegistry }}/mock_executor:latest"
+        image: "ghcr.io/wayming/trade/mock_executor:latest"
         imagePullPolicy: Always
         ports:
         - name: grpc
@@ -722,7 +726,7 @@ spec:
           echo "Weaviate is ready!"
       containers:
       - name: news-store
-        image: "{{ .Values.global.imageRegistry }}/news_store:latest"
+        image: "ghcr.io/wayming/trade/news_store:latest"
         imagePullPolicy: Always
         env:
         - name: RABBITMQ_URL
@@ -783,7 +787,7 @@ spec:
           echo "RabbitMQ is ready!"
       containers:
       - name: stock-hub
-        image: "{{ .Values.global.imageRegistry }}/stock_hub:latest"
+        image: "ghcr.io/wayming/trade/stock_hub:latest"
         imagePullPolicy: Always
         ports:
         - name: grpc
@@ -930,7 +934,7 @@ spec:
     spec:
       containers:
       - name: rabbitmq
-        image: "rabbitmq:3-management"
+        image: "ghcr.io/wayming/trade/rabbitmq:latest"
         imagePullPolicy: Always
         ports:
         - name: amqp

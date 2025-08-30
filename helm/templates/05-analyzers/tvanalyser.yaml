@@ -38,6 +38,10 @@ spec:
           value: {{ include "trade.rabbitmqUrl" . | quote }}
         - name: WEAVIATE_URL
           value: {{ include "trade.weaviateUrl" . | quote }}
+        - name: RABBITMQ_USER
+          value: {{ .Values.global.rabbitmqUser | quote }}
+        - name: RABBITMQ_PASS
+          value: {{ .Values.global.rabbitmqPass | quote }}
         volumeMounts:
         {{- if .Values.persistence.output.enabled }}
         - name: output-volume

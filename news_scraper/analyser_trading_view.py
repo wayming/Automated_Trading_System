@@ -181,9 +181,32 @@ async def handle_message(
                 logger.warning("[Analyser_Trading_View][{message_id}] Cannot reject message — channel already closed.")
 
 
+
+def mq_connect(name) -> pika.BlockingConnection:
+    print("[Analyser_Trading_View] Connecting to RabbitMQ...")
+    host = os.getenv("RABBITMQ_HOST", "rabbitmq")
+    username = os.getenv("RABBITMQ_USER", "admin")
+    password = os.getenv("RABBITMQ_PASS", "password")
+    connection = pika.BlockingConnection(pika.ConnectionParameters(
+            host=host,
+            heartbeat=600,
+            credentials=pika.PlainCredentials(username, password)
+        ))
+    print("[Analyser_Trading_View] Connected to RabbitMQ.")
+    channel = connection.channel()
+    channel.queue_declare(queue=QUEUE_TV_ARTICLES)
+    # Graceful shutdown handler
+    def signal_handler(sig, frame):
+        print("[Analyser_Trading_View] Gracefully shutting down...")
+        channel.stop_consuming()
+        connection.close()
+
+    signal.signal(signal.SIGINT, signal_handler)  # Catch Ctrl+C
+    signal.signal(signal.SIGTERM, signal_handler)  # Catch termination signal
+    return connection
+
 async def main():
-    logger.info("[Analyser_Trading_View] Connecting to RabbitMQ")
-    connection, queue = await new_mq_conn(QUEUE_TV_ARTICLES)
+    connection, queue = await mq_connect(QUEUE_TV_ARTICLES)
 
     # Declare response queues
     queue_processed_articles = await queue.channel.declare_queue(QUEUE_PROCESSED_ARTICLES, durable=True)
@@ -203,6 +226,10 @@ async def main():
 
     logger.info("[Analyser_Trading_View] Creating deepseek analyser")
     this_dir = Path(__file__).parent
+    if os.getenv("DEEPSEEK_API_KEY") is None:
+        raise ValueError("DEEPSEEK_API_KEY is not set")
+    if not os.path.exists(this_dir / "prompt.txt"):
+        raise ValueError("Prompt file not found")
     analyser = TradingViewAnalyser(
         api_key=os.getenv("DEEPSEEK_API_KEY"),
         prompt_path=this_dir / "prompt.txt", # Under the same directory

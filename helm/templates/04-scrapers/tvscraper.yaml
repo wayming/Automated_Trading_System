@@ -57,9 +57,9 @@ spec:
         - name: RABBITMQ_HOST
           value: {{ include "trade.rabbitmqHost" . | quote }}
         - name: RABBITMQ_USER
-          value: {{ .Values.scrapers.tvscraper.mqUser | quote }}
+          value: {{ .Values.global.rabbitmqUser | quote }}
         - name: RABBITMQ_PASS
-          value: {{ .Values.scrapers.tvscraper.mqPass | quote }}
+          value: {{ .Values.global.rabbitmqPass | quote }}
         volumeMounts:
           {{- if .Values.persistence.output.enabled }}
           - name: output-volume

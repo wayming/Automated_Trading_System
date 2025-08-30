@@ -1,4 +1,5 @@
 # kubectl rollout restart deployment -n default
+# kubectl rollout restart statefulset -n default
 
 
 # kubectl scale deployment --all --replicas=0 -n default

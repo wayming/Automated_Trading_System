@@ -44,6 +44,10 @@ spec:
             value: ":99"
           - name: RABBITMQ_URL
             value: {{ include "trade.rabbitmqUrl" . | quote }}
+          - name: RABBITMQ_USER
+            value: {{ .Values.global.rabbitmqUser | quote }}
+          - name: RABBITMQ_PASS
+            value: {{ .Values.global.rabbitmqPass | quote }}
         volumeMounts:
           {{- if .Values.persistence.output.enabled }}
           - name: output-volume

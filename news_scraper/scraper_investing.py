@@ -11,6 +11,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.remote.webdriver import RemoteWebDriver
 from selenium.webdriver.chrome.options import Options
 from .lru_cache import LRUCache
 from .interface import NewsScraper
@@ -35,31 +36,19 @@ class InvestingScraper(NewsScraper):
             self.queue_channel.queue_declare(queue=queue_name)
 
     def _start_driver(self):
-        options = uc.ChromeOptions()
+        options = Options()
         options.add_argument("--disable-blink-features=AutomationControlled")
-
-        options.add_argument("--disable-infobars")
-        options.add_argument("--disable-extensions")
-        options.add_argument("--start-maximized")
-
-        options.add_argument("--disable-gpu")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-software-rasterizer")  # Disable software rasterization
-        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36")
-        
         # options.add_argument("--headless=new")
 
-        self.driver = uc.Chrome(options=options, use_subprocess=True)
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-gpu")
 
-        # Avoid loading js which blocks the requests
-        self.driver.execute_cdp_cmd("Network.setBlockedURLs", {"urls": ["*.js"]})
-        self.driver.execute_cdp_cmd("Network.enable", {})
-    
-        # Enable logging of browser console messages
-        self.driver.execute_cdp_cmd('Log.enable', {})
-
-        return self.driver
+        hub_url = os.getenv("SELENIUM_HUB_URL", "http://selenium-hub:4444/wd/hub")
+        driver = RemoteWebDriver(
+            command_executor=hub_url,
+            options=options
+        )
+        return driver
      
     def _slugify(self, text, max_length=100):
         text = re.sub(r'[<>:"/\\|?*\s,\.]', '_', text.strip("'"))
@@ -152,8 +141,11 @@ def rabbit_mq_connect() -> pika.BlockingConnection:
     while True:
         try:
             print("[Scraper_Investing] Connecting to RabbitMQ...")
+            host = os.getenv("RABBITMQ_HOST", "rabbitmq")
+            username = os.getenv("RABBITMQ_USER", "admin")
+            password = os.getenv("RABBITMQ_PASS", "password")
             rabbit_connection = pika.BlockingConnection(
-                pika.ConnectionParameters(host="rabbitmq")
+                pika.ConnectionParameters(host=host, credentials=pika.PlainCredentials(username, password))
             )
             print("[Scraper_Investing] Connected to RabbitMQ.")
             return rabbit_connection

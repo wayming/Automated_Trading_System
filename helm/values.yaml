@@ -6,6 +6,8 @@ global:
   imageRegistry: ghcr.io/wayming/trade
   imagePullSecrets: []
   storageClass: ""
+  rabbitmqUser: admin
+  rabbitmqPass: password
 
 # Network Policy
 networkPolicy:
@@ -98,8 +100,8 @@ scrapers:
     enabled: true
     tradeViewUser: ""
     tradeViewPass: ""
-    mqUser: "{{ .Values.rabbitmq.env.RABBITMQ_DEFAULT_USER }}"
-    mqPass: "{{ .Values.rabbitmq.env.RABBITMQ_DEFAULT_PASS }}"
+    mqUser: "{{ .Values.rabbitmqUser }}"
+    mqPass: "{{ .Values.rabbitmqPass }}"
     image:
       repository: "tvscraper"
       tag: "latest"

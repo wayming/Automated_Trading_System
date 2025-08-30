@@ -50,7 +50,7 @@ class TradingViewScraper(NewsScraper):
             self.queue_channel.queue_declare(queue=queue_name, durable=True)
 
     def _start_driver(self):
-        options = uc.ChromeOptions()
+        options = Options()
         options.add_argument("--disable-blink-features=AutomationControlled")
         # options.add_argument("--headless=new")
 
