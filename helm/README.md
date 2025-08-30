@@ -5,7 +5,7 @@ This Helm chart deploys the Trade application services to Kubernetes
 ## Services Included
 
 - **Scrapers**: News scrapers for investing.com and TradingView
-- **Analyzers**: News analyzers for processing scraped data
+- **analysers**: News analysers for processing scraped data
 - **Core Services**: Mock executor, stock hub, AWS gateway, and news store
 - **Infrastructure**: RabbitMQ message broker and Weaviate vector database
 
@@ -67,7 +67,7 @@ The chart deploys services in the following order:
 3. RabbitMQ (message broker)
 4. Weaviate (vector database)
 5. Scrapers (with Xvfb for headless browsing)
-6. Analyzers
+6. analysers
 7. Core services
 
 ## Networking

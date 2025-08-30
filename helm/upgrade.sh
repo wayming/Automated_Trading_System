@@ -9,6 +9,8 @@
 
 helm template trade . -f values.yaml > out.yaml
 
-helm upgrade --install trade . \
+kubectl delete deployment,rs,pod -l app.kubernetes.io/instance=trade --ignore-not-found
+
+helm upgrade --install trade . --history-max=1 \
   --set scrapers.tvscraper.tradeViewUser=${TRADE_VIEW_USER} \
   --set scrapers.tvscraper.tradeViewPass=${TRADE_VIEW_PASS}

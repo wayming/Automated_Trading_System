@@ -81,7 +81,7 @@ scrapers:
   ivscraper:
     enabled: true
     image:
-      repository: "{{ .Values.global.imageRegistry }}/ivscraper"
+      repository: "ivscraper"
       tag: "latest"
       pullPolicy: Always
     resources:
@@ -101,7 +101,7 @@ scrapers:
     mqUser: "{{ .Values.rabbitmq.env.RABBITMQ_DEFAULT_USER }}"
     mqPass: "{{ .Values.rabbitmq.env.RABBITMQ_DEFAULT_PASS }}"
     image:
-      repository: tvscraper
+      repository: "tvscraper"
       tag: "latest"
       pullPolicy: Always
     resources:
@@ -114,12 +114,12 @@ scrapers:
     env:
       DISPLAY: ":99"
 
-# Analyzers Configuration
-analyzers:
+# analysers Configuration
+analysers:
   ivanalyser:
     enabled: true
     image:
-      repository: "{{ .Values.global.imageRegistry }}/ivanalyser"
+      repository: "ivanalyser"
       tag: "latest"
       pullPolicy: Always
     resources:
@@ -133,7 +133,7 @@ analyzers:
   tvanalyser:
     enabled: true
     image:
-      repository: "{{ .Values.global.imageRegistry }}/tvanalyser"
+      repository: "tvanalyser"
       tag: "latest"
       pullPolicy: Always
     resources:
@@ -149,7 +149,7 @@ coreServices:
   mockExecutor:
     enabled: true
     image:
-      repository: "{{ .Values.global.imageRegistry }}/mock_executor"
+      repository: "mock_executor"
       tag: "latest"
       pullPolicy: Always
     service:
@@ -166,7 +166,7 @@ coreServices:
   stockHub:
     enabled: true
     image:
-      repository: "{{ .Values.global.imageRegistry }}/stock_hub"
+      repository: "stock_hub"
       tag: "latest"
       pullPolicy: Always
     service:
@@ -183,7 +183,7 @@ coreServices:
   awsGateway:
     enabled: true
     image:
-      repository: "{{ .Values.global.imageRegistry }}/aws_gateway"
+      repository: "aws_gateway"
       tag: "latest"
       pullPolicy: Always
     service:
@@ -200,7 +200,7 @@ coreServices:
   newsStore:
     enabled: true
     image:
-      repository: "{{ .Values.global.imageRegistry }}/news_store"
+      repository: "news_store"
       tag: "latest"
       pullPolicy: Always
     resources:
@@ -229,8 +229,7 @@ selenium:
     service:
       port: 4444
       env:
-        - name: VNC_PASSWORD
-          value: "secret"
+        VNC_PASSWORD: "secret"
   nodeChrome:
     image: selenium/node-chrome:4.35.0
     replicas: 2

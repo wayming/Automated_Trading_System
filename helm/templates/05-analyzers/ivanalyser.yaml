@@ -1,4 +1,4 @@
-{{- if .Values.analyzers.ivanalyser.enabled }}
+{{- if .Values.analysers.ivanalyser.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -31,8 +31,8 @@ spec:
           echo "RabbitMQ is ready!"
       containers:
       - name: ivanalyser
-        image: "{{ .Values.analyzers.ivanalyser.image.repository }}:{{ .Values.analyzers.ivanalyser.image.tag }}"
-        imagePullPolicy: {{ .Values.analyzers.ivanalyser.image.pullPolicy }}
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.analysers.ivanalyser.image.repository }}:{{ .Values.analysers.ivanalyser.image.tag }}"
+        imagePullPolicy: {{ .Values.analysers.ivanalyser.image.pullPolicy }}
         env:
         - name: RABBITMQ_URL
           value: {{ include "trade.rabbitmqUrl" . | quote }}
@@ -44,7 +44,7 @@ spec:
           mountPath: /app/output
         {{- end }}
         resources:
-          {{- toYaml .Values.analyzers.ivanalyser.resources | nindent 10 }}
+          {{- toYaml .Values.analysers.ivanalyser.resources | nindent 10 }}
       volumes:
       {{- if .Values.persistence.output.enabled }}
       - name: output-volume

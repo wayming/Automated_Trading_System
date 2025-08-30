@@ -41,7 +41,7 @@ spec:
           echo "Weaviate is ready!"
       containers:
       - name: news-store
-        image: "{{ .Values.coreServices.newsStore.image.repository }}:{{ .Values.coreServices.newsStore.image.tag }}"
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.coreServices.newsStore.image.repository }}:{{ .Values.coreServices.newsStore.image.tag }}"
         imagePullPolicy: {{ .Values.coreServices.newsStore.image.pullPolicy }}
         env:
         - name: RABBITMQ_URL

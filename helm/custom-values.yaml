@@ -15,8 +15,8 @@ scrapers:
   tvscraper:
     enabled: true
 
-# Disable all analyzers
-analyzers:
+# Disable all analysers
+analysers:
   ivanalyser:
     enabled: false
   tvanalyser:

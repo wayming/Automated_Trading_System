@@ -31,7 +31,7 @@ spec:
           echo "RabbitMQ is ready!"
       containers:
       - name: aws-gateway
-        image: "{{ .Values.coreServices.awsGateway.image.repository }}:{{ .Values.coreServices.awsGateway.image.tag }}"
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.coreServices.awsGateway.image.repository }}:{{ .Values.coreServices.awsGateway.image.tag }}"
         imagePullPolicy: {{ .Values.coreServices.awsGateway.image.pullPolicy }}
         ports:
         - name: grpc

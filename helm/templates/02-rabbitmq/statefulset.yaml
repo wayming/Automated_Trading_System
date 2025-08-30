@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: rabbitmq
-        image: "{{ .Values.rabbitmq.image.repository }}:{{ .Values.rabbitmq.image.tag }}"
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.rabbitmq.image.repository }}:{{ .Values.rabbitmq.image.tag }}"
         imagePullPolicy: {{ .Values.rabbitmq.image.pullPolicy }}
         ports:
         - name: amqp

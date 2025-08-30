@@ -31,7 +31,7 @@ spec:
           echo "RabbitMQ is ready!"
       containers:
       - name: stock-hub
-        image: "{{ .Values.coreServices.stockHub.image.repository }}:{{ .Values.coreServices.stockHub.image.tag }}"
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.coreServices.stockHub.image.repository }}:{{ .Values.coreServices.stockHub.image.tag }}"
         imagePullPolicy: {{ .Values.coreServices.stockHub.image.pullPolicy }}
         ports:
         - name: grpc

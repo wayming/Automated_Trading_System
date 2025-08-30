@@ -31,7 +31,7 @@ spec:
           echo "RabbitMQ is ready!"
       containers:
       - name: mock-executor
-        image: "{{ .Values.coreServices.mockExecutor.image.repository }}:{{ .Values.coreServices.mockExecutor.image.tag }}"
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.coreServices.mockExecutor.image.repository }}:{{ .Values.coreServices.mockExecutor.image.tag }}"
         imagePullPolicy: {{ .Values.coreServices.mockExecutor.image.pullPolicy }}
         ports:
         - name: grpc

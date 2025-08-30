@@ -46,7 +46,9 @@ services:
         condition: service_healthy # RabbitMQ begin to accept connections
 
   rabbitmq:
-    image: rabbitmq:3-management
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"  # Management UI

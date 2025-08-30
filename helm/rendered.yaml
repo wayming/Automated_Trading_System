@@ -252,6 +252,29 @@ spec:
     app.kubernetes.io/instance: trade
     component: stock-hub
 ---
+# Source: trade/templates/08-selenium/hub-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: trade-selenium-hub
+spec:
+  selector:
+    app: trade
+    component: selenium-hub
+  ports:
+    - name: http
+      port: 4444
+      targetPort: 4444
+    - name: event-pub
+      port: 4442
+      targetPort: 4442
+    - name: event-sub
+      port: 4443
+      targetPort: 4443
+  env:
+    - name: VNC_PASSWORD
+      value: secret
+---
 # Source: trade/templates/04-scrapers/ivscraper.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -358,7 +381,7 @@ spec:
             echo "RabbitMQ is ready!"
       containers:
       - name: tvscraper
-        image: "ghcr.io/wayming/trade/tvscraper:latest"
+        image: "{{ .Values.global.imageRegistry }}/tvscraper:latest"
         imagePullPolicy: Always
         command: ["sh", "-c"]
         args:
@@ -369,6 +392,8 @@ spec:
         env:
         - name: DISPLAY
           value: ":99"
+        - name: SELENIUM_HUB_URL
+          value: "http://trade-selenium-hub:4444/wd/hub"
         - name: TRADE_VIEW_USER
           valueFrom:
             secretKeyRef:
@@ -381,6 +406,10 @@ spec:
               key: TRADE_VIEW_PASS
         - name: RABBITMQ_HOST
           value: "trade-rabbitmq"
+        - name: RABBITMQ_USER
+          value: "{{ .Values.rabbitmq.env.RABBITMQ_DEFAULT_USER }}"
+        - name: RABBITMQ_PASS
+          value: "{{ .Values.rabbitmq.env.RABBITMQ_DEFAULT_PASS }}"
         volumeMounts:
           - name: output-volume
             mountPath: /app/output
@@ -496,7 +525,7 @@ spec:
           echo "RabbitMQ is ready!"
       containers:
       - name: tvanalyser
-        image: "{{ .Values.global.imageRegistry }}/tvanalyser:latest"
+        image: "ghcr.io/wayming/trade/tvanalyser:latest"
         imagePullPolicy: Always
         env:
         - name: RABBITMQ_URL
@@ -778,6 +807,100 @@ spec:
         persistentVolumeClaim:
           claimName: trade-output-pvc
 ---
+# Source: trade/templates/08-selenium/hub-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trade-selenium-hub
+  labels:
+    helm.sh/chart: trade-0.1.0
+    app.kubernetes.io/name: trade
+    app.kubernetes.io/instance: trade
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+    component: selenium-hub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trade
+      component: selenium-hub
+  template:
+    metadata:
+      labels:
+        app: trade
+        component: selenium-hub
+    spec:
+      containers:
+        - name: hub
+          image: selenium/hub:4.35.0
+          ports:
+            - containerPort: 4444
+          env:
+            - name: SE_EVENT_BUS_HOST
+              value: trade-selenium-hub
+            - name: SE_EVENT_BUS_PUBLISH_PORT
+              value: "4442"
+            - name: SE_EVENT_BUS_SUBSCRIBE_PORT
+              value: "4443"
+          readinessProbe:
+            httpGet:
+              path: /wd/hub/status
+              port: 4444
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+# Source: trade/templates/08-selenium/node-chrome-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trade-selenium-node-chrome
+  labels:
+    helm.sh/chart: trade-0.1.0
+    app.kubernetes.io/name: trade
+    app.kubernetes.io/instance: trade
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+    component: selenium-node-chrome
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: trade
+      component: selenium-node-chrome
+  template:
+    metadata:
+      labels:
+        app: trade
+        component: selenium-node-chrome
+    spec:
+      containers:
+        - name: chrome
+          image: selenium/node-chrome:4.35.0
+          env:
+            - name: SE_EVENT_BUS_HOST
+              value: trade-selenium-hub
+            - name: SE_EVENT_BUS_PUBLISH_PORT
+              value: "4442"
+            - name: SE_EVENT_BUS_SUBSCRIBE_PORT
+              value: "4443"
+            - name: SE_NODE_GRID_URL
+              value: http://trade-selenium-hub:4444
+            - name: SE_NODE_MAX_SESSIONS
+              value: "1"
+            - name: SE_NODE_OPTS
+              value: "--no-sandbox --disable-gpu --headless=new --disable-dev-shm-usage --window-size=1280,1024"
+          volumeMounts:
+            - mountPath: /dev/shm
+              name: dshm
+          resources:
+            {}
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+---
 # Source: trade/templates/02-rabbitmq/statefulset.yaml
 apiVersion: apps/v1
 kind: StatefulSet
@@ -816,6 +939,11 @@ spec:
         - name: management
           containerPort: 15672
           protocol: TCP
+        env:
+          - name: RABBITMQ_DEFAULT_USER
+            value: admin
+          - name: RABBITMQ_DEFAULT_PASS
+            value: password
         volumeMounts:
         - name: rabbitmq-data
           mountPath: /var/lib/rabbitmq

@@ -1,4 +1,4 @@
-{{- if .Values.analyzers.tvanalyser.enabled }}
+{{- if .Values.analysers.tvanalyser.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -31,8 +31,8 @@ spec:
           echo "RabbitMQ is ready!"
       containers:
       - name: tvanalyser
-        image: "{{ .Values.analyzers.tvanalyser.image.repository }}:{{ .Values.analyzers.tvanalyser.image.tag }}"
-        imagePullPolicy: {{ .Values.analyzers.tvanalyser.image.pullPolicy }}
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.analysers.tvanalyser.image.repository }}:{{ .Values.analysers.tvanalyser.image.tag }}"
+        imagePullPolicy: {{ .Values.analysers.tvanalyser.image.pullPolicy }}
         env:
         - name: RABBITMQ_URL
           value: {{ include "trade.rabbitmqUrl" . | quote }}
@@ -44,7 +44,7 @@ spec:
           mountPath: /app/output
         {{- end }}
         resources:
-          {{- toYaml .Values.analyzers.tvanalyser.resources | nindent 10 }}
+          {{- toYaml .Values.analysers.tvanalyser.resources | nindent 10 }}
       volumes:
       {{- if .Values.persistence.output.enabled }}
       - name: output-volume
