@@ -1,13 +1,6 @@
 # Debug configuration - only deploy infrastructure services
 # RabbitMQ and Weaviate only
 
-# Keep RabbitMQ and Weaviate enabled
-rabbitmq:
-  enabled: true
-
-weaviate:
-  enabled: true
-
 # Disable all scrapers
 scrapers:
   ivscraper:
@@ -20,7 +13,7 @@ analysers:
   ivanalyser:
     enabled: false
   tvanalyser:
-    enabled: false
+    enabled: true
 
 # Disable all core services
 coreServices:
@@ -32,6 +25,10 @@ coreServices:
     enabled: false
   newsStore:
     enabled: false
+  rabbitmq:
+    enabled: true
+  weaviate:
+    enabled: true
 
 # Keep init containers disabled for now
 initContainers:

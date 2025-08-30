@@ -3,7 +3,6 @@ FROM rabbitmq:3-management
 # Single RUN command with printf
 RUN printf "\
 heartbeat = 600\n\
-channel_operation_timeout = 600000\n\
 log.connection.level = debug\n\
 log.channel.level = debug\n" > /etc/rabbitmq/rabbitmq.conf && \
     chown rabbitmq:rabbitmq /etc/rabbitmq/rabbitmq.conf

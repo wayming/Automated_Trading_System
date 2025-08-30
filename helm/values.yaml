@@ -35,7 +35,7 @@ rabbitmq:
   enabled: true
   image:
     repository: rabbitmq
-    tag: "3-management"
+    tag: "latest"
     pullPolicy: Always
   service:
     type: ClusterIP
