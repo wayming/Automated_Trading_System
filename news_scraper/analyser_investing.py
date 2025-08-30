@@ -158,32 +158,9 @@ def trade_on_score(analyse_result: str, executor: TradeExecutor):
     else:
         logger.info("\nNo short_term analysis available")
 
-def mq_connect(name) -> pika.BlockingConnection:
-    print("[Analyser_Investing] Connecting to RabbitMQ...")
-    host = os.getenv("RABBITMQ_HOST", "rabbitmq")
-    username = os.getenv("RABBITMQ_USER", "admin")
-    password = os.getenv("RABBITMQ_PASS", "password")
-    connection = pika.BlockingConnection(pika.ConnectionParameters(
-            host=host,
-            heartbeat=600,
-            credentials=pika.PlainCredentials(username, password)
-        ))
-    print("[Analyser_Investing] Connected to RabbitMQ.")
-    channel = connection.channel()
-    channel.queue_declare(queue=QUEUE_IV_ARTICLES, durable=True)
-    # Graceful shutdown handler
-    def signal_handler(sig, frame):
-        print("[Analyser_Investing] Gracefully shutting down...")
-        channel.stop_consuming()
-        connection.close()
-
-    signal.signal(signal.SIGINT, signal_handler)  # Catch Ctrl+C
-    signal.signal(signal.SIGTERM, signal_handler)  # Catch termination signal
-    return connection
-
 def main():
     logger.info("[Analyser_Investing] Connecting to RabbitMQ...")
-    conn = mq_connect(QUEUE_IV_ARTICLES)
+    conn = new_mq_conn(QUEUE_IV_ARTICLES)
     executor = MockTradeExecutorProxy()
     this_dir = Path(__file__).parent
     prompt_path=this_dir/"prompt.txt"
