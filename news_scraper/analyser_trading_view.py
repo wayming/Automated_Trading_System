@@ -205,7 +205,7 @@ async def main():
 
     logger.info("[Analyser_Trading_View] Creating deepseek analyser")
     this_dir = Path(__file__).parent
-    if os.getenv("DEEPSEEK_API_KEY") is None:
+    if os.getenv("DEEPSEEK_API_KEY") is None or os.getenv("DEEPSEEK_API_KEY") == "":
         raise ValueError("DEEPSEEK_API_KEY is not set")
     if not os.path.exists(this_dir / "prompt.txt"):
         raise ValueError("Prompt file not found")

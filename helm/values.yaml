@@ -8,7 +8,8 @@ global:
   storageClass: ""
   rabbitmqUser: admin
   rabbitmqPass: password
-
+  deepseekApiKey: ""
+  
 # Network Policy
 networkPolicy:
   enabled: true

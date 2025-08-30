@@ -42,6 +42,11 @@ spec:
           value: {{ .Values.global.rabbitmqUser | quote }}
         - name: RABBITMQ_PASS
           value: {{ .Values.global.rabbitmqPass | quote }}
+        - name: DEEPSEEK_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "trade.fullname" . }}-deepseek-api-secret
+              key: DEEPSEEK_API_KEY
         volumeMounts:
         {{- if .Values.persistence.output.enabled }}
         - name: output-volume
