@@ -49,6 +49,7 @@ spec:
         {{- end }}
         resources:
           {{- toYaml .Values.analysers.tvanalyser.resources | nindent 10 }}
+        command: ["sh", "-c", "python -m news_scraper.analyser_trading_view"]
       volumes:
       {{- if .Values.persistence.output.enabled }}
       - name: output-volume

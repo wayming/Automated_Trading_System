@@ -21,7 +21,7 @@ from trade_policy       import TradePolicy
 from openai             import OpenAI
 from dataclasses        import asdict
 from datetime           import datetime, timezone
-d  
+
 import grpc.aio
 from proto import analysis_push_gateway_pb2 as pb2
 from proto import analysis_push_gateway_pb2_grpc as pb2_grpc

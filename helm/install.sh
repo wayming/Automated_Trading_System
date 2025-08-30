@@ -48,9 +48,6 @@ kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/st
 # 获取初始密码
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
 
-# # 暴露 UI（端口转发）
-# kubectl port-forward svc/argocd-server -n default 8080:443
-# kubectl port-forward svc/trade-selenium-hub -n default 4444:4444
 
 # 添加仓库
 helm repo add bitnami https://charts.bitnami.com/bitnami
