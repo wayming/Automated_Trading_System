@@ -49,6 +49,7 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.rabbitmq
+    image: ${REGISTRY}/${IMAGE_NAME}/rabbitmq:latest
     ports:
       - "5672:5672"
       - "15672:15672"  # Management UI
