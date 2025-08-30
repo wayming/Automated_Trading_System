@@ -7,6 +7,8 @@ import requests
 import aio_pika
 import logging
 import signal
+import pika
+
 from typing import Optional, Tuple
 from functools          import partial
 from bs4                import BeautifulSoup

@@ -4,6 +4,9 @@ import re
 import pickle
 import traceback
 import argparse
+import pika
+import undetected_chromedriver as uc
+
 from typing import List
 
 from selenium.webdriver.common.by  import By
@@ -14,13 +17,10 @@ from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 
-import undetected_chromedriver as uc
-
 from prometheus_client import start_http_server, Counter
 from prometheus_client import Gauge
 from .lru_cache import LRUCache
 from .interface import NewsScraper
-import pika
 
 QUEUE_TV_ARTICLES = "tv_articles"
 
