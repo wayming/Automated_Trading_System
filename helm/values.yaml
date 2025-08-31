@@ -80,7 +80,7 @@ scrapers:
     enabled: true
     image:
       repository: "ivscraper"
-      tag: "1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e"
+      tag: "dccb4542d1473911e9f5bf1b1f153b1d02daaf8a"
       pullPolicy: Always
     resources:
       limits:
@@ -99,7 +99,7 @@ scrapers:
     mqPass: "{{ .Values.rabbitmqPass }}"
     image:
       repository: "tvscraper"
-      tag: "1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e"
+      tag: "dccb4542d1473911e9f5bf1b1f153b1d02daaf8a"
       pullPolicy: Always
     resources:
       limits:
@@ -112,29 +112,29 @@ scrapers:
       DISPLAY: ":99"
   ivanalyser:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   tvanalyser:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   mock_executor:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   stock_hub:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   aws_gateway:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   news_store:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
 # analysers Configuration
 analysers:
   ivanalyser:
     enabled: true
     image:
       repository: "ivanalyser"
-      tag: "1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e"
+      tag: "dccb4542d1473911e9f5bf1b1f153b1d02daaf8a"
       pullPolicy: Always
     resources:
       limits:
@@ -147,7 +147,7 @@ analysers:
     enabled: true
     image:
       repository: "tvanalyser"
-      tag: "1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e"
+      tag: "dccb4542d1473911e9f5bf1b1f153b1d02daaf8a"
       pullPolicy: Always
     resources:
       limits:
@@ -158,22 +158,22 @@ analysers:
         memory: 512Mi
   ivscraper:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   tvscraper:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   mock_executor:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   stock_hub:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   aws_gateway:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   news_store:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
 # Core Services Configuration
 coreServices:
   mockExecutor:
@@ -239,28 +239,28 @@ coreServices:
         memory: 256Mi
   ivscraper:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   tvscraper:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   ivanalyser:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   tvanalyser:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   mock_executor:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   stock_hub:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   aws_gateway:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
   news_store:
     image:
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
 # Init Containers
 initContainers:
   dependencyChecks:
