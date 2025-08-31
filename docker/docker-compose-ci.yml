@@ -3,8 +3,8 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.scraper
-    args:
-      - IMAGE_TAG=${IMAGE_TAG}
+      args:
+        - IMAGE_TAG=${IMAGE_TAG}
     image: ${REGISTRY}/${IMAGE_NAME}/ivscraper:${IMAGE_TAG}
     container_name: python-scraper-iv
     volumes:
@@ -28,8 +28,8 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.scraper
-    args:
-      - IMAGE_TAG=${IMAGE_TAG}
+      args:
+        - IMAGE_TAG=${IMAGE_TAG}
     image: ${REGISTRY}/${IMAGE_NAME}/tvscraper:${IMAGE_TAG}
     container_name: python-scraper-tv
     volumes:
@@ -75,8 +75,8 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.analyser
-    args:
-      - IMAGE_TAG=${IMAGE_TAG}
+      args:
+        - IMAGE_TAG=${IMAGE_TAG}
     image: ${REGISTRY}/${IMAGE_NAME}/ivanalyser:${IMAGE_TAG}
     environment:
       - AWS_GATEWAY_ENDPOINT=aws_gateway:50053
@@ -95,8 +95,8 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.analyser
-    args:
-      - IMAGE_TAG=${IMAGE_TAG}
+      args:
+        - IMAGE_TAG=${IMAGE_TAG}
     image: ${REGISTRY}/${IMAGE_NAME}/tvanalyser:${IMAGE_TAG}
     environment:
       - AWS_GATEWAY_ENDPOINT=aws_gateway:50053
@@ -117,8 +117,8 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.mock.executor
-    args:
-      - IMAGE_TAG=${IMAGE_TAG}
+      args:
+        - IMAGE_TAG=${IMAGE_TAG}
     image: ${REGISTRY}/${IMAGE_NAME}/mock_executor:${IMAGE_TAG}
     ports:
       - "50051:50051"
@@ -134,8 +134,8 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.stock.hub
-    args:
-      - IMAGE_TAG=${IMAGE_TAG}
+      args:
+        - IMAGE_TAG=${IMAGE_TAG}
     image: ${REGISTRY}/${IMAGE_NAME}/stock_hub:${IMAGE_TAG}
     ports:
       - "50052:50052"
@@ -148,8 +148,8 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.aws.gateway
-    args:
-      - IMAGE_TAG=${IMAGE_TAG}
+      args:
+        - IMAGE_TAG=${IMAGE_TAG}
     image: ${REGISTRY}/${IMAGE_NAME}/aws_gateway:${IMAGE_TAG}
     ports:
       - "50053:50053"
@@ -162,8 +162,8 @@ services:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.news.store
-    args:
-      - IMAGE_TAG=${IMAGE_TAG}
+      args:
+        - IMAGE_TAG=${IMAGE_TAG}
     image: ${REGISTRY}/${IMAGE_NAME}/news_store:${IMAGE_TAG}
     volumes:
       - ../output:/app/output  # Mount volume
