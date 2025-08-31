@@ -9,12 +9,10 @@ global:
   rabbitmqUser: admin
   rabbitmqPass: password
   deepseekApiKey: ""
-  
 # Network Policy
 networkPolicy:
   enabled: true
   allowedNamespaces: []
-
 # Persistent Volumes
 persistence:
   output:
@@ -32,7 +30,6 @@ persistence:
     size: 10Gi
     accessMode: ReadWriteOnce
     storageClass: ""
-
 # RabbitMQ Configuration
 rabbitmq:
   enabled: true
@@ -55,7 +52,6 @@ rabbitmq:
     # Use default guest/guest, do not create new user
     RABBITMQ_DEFAULT_USER: "admin"
     RABBITMQ_DEFAULT_PASS: "password"
-
 # Weaviate Configuration
 weaviate:
   enabled: true
@@ -78,14 +74,13 @@ weaviate:
     QUERY_DEFAULTS_LIMIT: "25"
     AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
     PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
-
 # Scrapers Configuration
 scrapers:
   ivscraper:
     enabled: true
     image:
       repository: "ivscraper"
-      tag: "latest"
+      tag: "549b277c261e4d178e9ebc1ea000555f77d39cfb"
       pullPolicy: Always
     resources:
       limits:
@@ -96,7 +91,6 @@ scrapers:
         memory: 512Mi
     env:
       DISPLAY: ":99"
-  
   tvscraper:
     enabled: true
     tradeViewUser: ""
@@ -105,7 +99,7 @@ scrapers:
     mqPass: "{{ .Values.rabbitmqPass }}"
     image:
       repository: "tvscraper"
-      tag: "latest"
+      tag: "549b277c261e4d178e9ebc1ea000555f77d39cfb"
       pullPolicy: Always
     resources:
       limits:
@@ -116,14 +110,31 @@ scrapers:
         memory: 512Mi
     env:
       DISPLAY: ":99"
-
+  ivanalyser:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  tvanalyser:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  mock_executor:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  stock_hub:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  aws_gateway:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  news_store:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
 # analysers Configuration
 analysers:
   ivanalyser:
     enabled: true
     image:
       repository: "ivanalyser"
-      tag: "latest"
+      tag: "549b277c261e4d178e9ebc1ea000555f77d39cfb"
       pullPolicy: Always
     resources:
       limits:
@@ -132,12 +143,11 @@ analysers:
       requests:
         cpu: 250m
         memory: 512Mi
-  
   tvanalyser:
     enabled: true
     image:
       repository: "tvanalyser"
-      tag: "latest"
+      tag: "549b277c261e4d178e9ebc1ea000555f77d39cfb"
       pullPolicy: Always
     resources:
       limits:
@@ -146,7 +156,24 @@ analysers:
       requests:
         cpu: 250m
         memory: 512Mi
-
+  ivscraper:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  tvscraper:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  mock_executor:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  stock_hub:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  aws_gateway:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  news_store:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
 # Core Services Configuration
 coreServices:
   mockExecutor:
@@ -165,7 +192,6 @@ coreServices:
       requests:
         cpu: 250m
         memory: 256Mi
-  
   stockHub:
     enabled: true
     image:
@@ -182,7 +208,6 @@ coreServices:
       requests:
         cpu: 250m
         memory: 256Mi
-  
   awsGateway:
     enabled: true
     image:
@@ -199,7 +224,6 @@ coreServices:
       requests:
         cpu: 250m
         memory: 256Mi
-  
   newsStore:
     enabled: true
     image:
@@ -213,7 +237,30 @@ coreServices:
       requests:
         cpu: 250m
         memory: 256Mi
-
+  ivscraper:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  tvscraper:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  ivanalyser:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  tvanalyser:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  mock_executor:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  stock_hub:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  aws_gateway:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
+  news_store:
+    image:
+      tag: 549b277c261e4d178e9ebc1ea000555f77d39cfb
 # Init Containers
 initContainers:
   dependencyChecks:
@@ -222,7 +269,6 @@ initContainers:
       repository: busybox
       tag: "1.35"
       pullPolicy: Always
-
 selenium:
   hub:
     image: selenium/hub:4.35.0
