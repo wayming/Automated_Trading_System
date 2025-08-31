@@ -16,6 +16,3 @@ spec:
     - name: event-sub
       port: 4443
       targetPort: 4443
-  env:
-    - name: VNC_PASSWORD
-      value: {{ .Values.selenium.hub.service.env.VNC_PASSWORD }}

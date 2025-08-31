@@ -29,6 +29,8 @@ spec:
               value: "4442"
             - name: SE_EVENT_BUS_SUBSCRIBE_PORT
               value: "4443"
+            - name: VNC_PASSWORD
+              value: {{ .Values.selenium.hub.service.env.VNC_PASSWORD }}
           readinessProbe:
             httpGet:
               path: /wd/hub/status

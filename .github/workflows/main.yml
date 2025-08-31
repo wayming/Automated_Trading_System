@@ -41,8 +41,36 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set IMAGE_TAG
+        run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+
       # Build and push all images using docker compose
       - name: Build and push all images
         run: |
-          docker compose -f docker/docker-compose-ci.yml build
-          docker compose -f docker/docker-compose-ci.yml push
+          IMAGE_TAG=${IMAGE_TAG} docker compose -f docker/docker-compose-ci.yml build
+          IMAGE_TAG=${IMAGE_TAG} docker compose -f docker/docker-compose-ci.yml 
+
+      # Update Helm values.yaml with new image tags
+      - name: Update Helm values.yaml
+        run: |
+          CHART_DIR="helm"
+          TAG=${IMAGE_TAG}
+          
+          # List of all images to update
+          IMAGES=("ivscraper" "tvscraper" "ivanalyser" "tvanalyser" "mock_executor" "stock_hub" "aws_gateway" "news_store")
+          
+          for img in "${IMAGES[@]}"; do
+            yq -i ".scrapers.${img}.image.tag = \"${TAG}\"" ${CHART_DIR}/values.yaml || true
+            yq -i ".analysers.${img}.image.tag = \"${TAG}\"" ${CHART_DIR}/values.yaml || true
+            yq -i ".coreServices.${img}.image.tag = \"${TAG}\"" ${CHART_DIR}/values.yaml || true
+          done
+
+      # Commit updated Helm values.yaml back to repo
+      # Use skip ci to prevent infinite loop
+      - name: Commit Helm values.yaml
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add helm/values.yaml
+          git commit -m "Update image tags to ${IMAGE_TAG} [skip ci]" || echo "No changes to commit"
+          git push
