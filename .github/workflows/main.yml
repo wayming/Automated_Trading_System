@@ -44,10 +44,15 @@ jobs:
       - name: Set IMAGE_TAG
         run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
 
-      # Build and push all images using docker compose
-      - name: Build and push all images
+      # Build all images using docker compose
+      - name: Build all images
         run: |
           IMAGE_TAG=${IMAGE_TAG} docker compose -f docker/docker-compose-ci.yml build
+
+      # Push all images using docker compose
+      - name: Push all images
+        run: |
+          IMAGE_TAG=${IMAGE_TAG} docker compose -f docker/docker-compose-ci.yml push
 
       # Update Helm values.yaml with new image tags
       - name: Update Helm values.yaml
