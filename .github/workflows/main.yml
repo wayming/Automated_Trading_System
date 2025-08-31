@@ -48,7 +48,6 @@ jobs:
       - name: Build and push all images
         run: |
           IMAGE_TAG=${IMAGE_TAG} docker compose -f docker/docker-compose-ci.yml build
-          IMAGE_TAG=${IMAGE_TAG} docker compose -f docker/docker-compose-ci.yml 
 
       # Update Helm values.yaml with new image tags
       - name: Update Helm values.yaml
