@@ -80,7 +80,7 @@ scrapers:
     enabled: true
     image:
       repository: "ivscraper"
-      tag: "f3d8d9705531b2b6a49782cd7093fce683de0b6c"
+      tag: "64da2bfdee8397209c0668231b59ea71fbfff8e2"
       pullPolicy: Always
     resources:
       limits:
@@ -99,7 +99,7 @@ scrapers:
     mqPass: "{{ .Values.rabbitmqPass }}"
     image:
       repository: "tvscraper"
-      tag: "f3d8d9705531b2b6a49782cd7093fce683de0b6c"
+      tag: "64da2bfdee8397209c0668231b59ea71fbfff8e2"
       pullPolicy: Always
     resources:
       limits:
@@ -116,7 +116,7 @@ analysers:
     enabled: true
     image:
       repository: "ivanalyser"
-      tag: "f3d8d9705531b2b6a49782cd7093fce683de0b6c"
+      tag: "64da2bfdee8397209c0668231b59ea71fbfff8e2"
       pullPolicy: Always
     resources:
       limits:
@@ -129,7 +129,7 @@ analysers:
     enabled: true
     image:
       repository: "tvanalyser"
-      tag: "f3d8d9705531b2b6a49782cd7093fce683de0b6c"
+      tag: "64da2bfdee8397209c0668231b59ea71fbfff8e2"
       pullPolicy: Always
     resources:
       limits:
@@ -144,7 +144,7 @@ coreServices:
     enabled: true
     image:
       repository: "mock_executor"
-      tag: f3d8d9705531b2b6a49782cd7093fce683de0b6c
+      tag: 64da2bfdee8397209c0668231b59ea71fbfff8e2
       pullPolicy: Always
     service:
       type: ClusterIP
@@ -160,7 +160,7 @@ coreServices:
     enabled: true
     image:
       repository: "stock_hub"
-      tag: f3d8d9705531b2b6a49782cd7093fce683de0b6c
+      tag: 64da2bfdee8397209c0668231b59ea71fbfff8e2
       pullPolicy: Always
     service:
       type: ClusterIP
@@ -176,7 +176,7 @@ coreServices:
     enabled: true
     image:
       repository: "aws_gateway"
-      tag: f3d8d9705531b2b6a49782cd7093fce683de0b6c
+      tag: 64da2bfdee8397209c0668231b59ea71fbfff8e2
       pullPolicy: Always
     service:
       type: ClusterIP
@@ -192,7 +192,7 @@ coreServices:
     enabled: true
     image:
       repository: "news_store"
-      tag: f3d8d9705531b2b6a49782cd7093fce683de0b6c
+      tag: 64da2bfdee8397209c0668231b59ea71fbfff8e2
       pullPolicy: Always
     resources:
       limits:
