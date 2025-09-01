@@ -109,5 +109,5 @@ http://{{ include "trade.fullname" . }}-{{ .Values.selenium.hub.serviceName }}:{
 {{- end -}}
 
 {{- define "trade.awsGatewayEndpoint" -}}
-{{- printf "%s-aws-gateway:%d" (include "trade.fullname" .) .Values.coreServices.awsGateway.service.port }}
+ {{(include "trade.fullname" . )}}-aws-gateway:{{ .Values.coreServices.awsGateway.service.port }}
 {{- end }}
