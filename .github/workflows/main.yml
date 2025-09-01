@@ -60,13 +60,19 @@ jobs:
           CHART_DIR="helm"
           TAG=${IMAGE_TAG}
           
-          # List of all images to update
-          IMAGES=("ivscraper" "tvscraper" "ivanalyser" "tvanalyser" "mock_executor" "stock_hub" "aws_gateway" "news_store")
-          
-          for img in "${IMAGES[@]}"; do
-            yq -i ".scrapers.${img}.image.tag = \"${TAG}\"" ${CHART_DIR}/values.yaml || true
-            yq -i ".analysers.${img}.image.tag = \"${TAG}\"" ${CHART_DIR}/values.yaml || true
-            yq -i ".coreServices.${img}.image.tag = \"${TAG}\"" ${CHART_DIR}/values.yaml || true
+          # scrapers
+          for img in ivscraper tvscraper; do
+            yq -i "(.scrapers.${img}.image.tag) |= \"${TAG}\"" ${CHART_DIR}/values.yaml
+          done
+
+          # analysers
+          for img in ivanalyser tvanalyser; do
+            yq -i "(.analysers.${img}.image.tag) |= \"${TAG}\"" ${CHART_DIR}/values.yaml
+          done
+
+          # core services
+          for img in mockExecutor stockHub awsGateway newsStore; do
+            yq -i "(.coreServices.${img}.image.tag) |= \"${TAG}\"" ${CHART_DIR}/values.yaml
           done
 
       # Commit updated Helm values.yaml back to repo

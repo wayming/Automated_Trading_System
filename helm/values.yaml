@@ -110,24 +110,7 @@ scrapers:
         memory: 512Mi
     env:
       DISPLAY: ":99"
-  ivanalyser:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  tvanalyser:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  mock_executor:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  stock_hub:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  aws_gateway:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  news_store:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
+
 # analysers Configuration
 analysers:
   ivanalyser:
@@ -156,31 +139,14 @@ analysers:
       requests:
         cpu: 250m
         memory: 512Mi
-  ivscraper:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  tvscraper:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  mock_executor:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  stock_hub:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  aws_gateway:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  news_store:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
+
 # Core Services Configuration
 coreServices:
   mockExecutor:
     enabled: true
     image:
       repository: "mock_executor"
-      tag: "latest"
+      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
       pullPolicy: Always
     service:
       type: ClusterIP
@@ -196,7 +162,7 @@ coreServices:
     enabled: true
     image:
       repository: "stock_hub"
-      tag: "latest"
+      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
       pullPolicy: Always
     service:
       type: ClusterIP
@@ -212,7 +178,7 @@ coreServices:
     enabled: true
     image:
       repository: "aws_gateway"
-      tag: "latest"
+      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
       pullPolicy: Always
     service:
       type: ClusterIP
@@ -228,7 +194,7 @@ coreServices:
     enabled: true
     image:
       repository: "news_store"
-      tag: "latest"
+      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
       pullPolicy: Always
     resources:
       limits:
@@ -237,30 +203,7 @@ coreServices:
       requests:
         cpu: 250m
         memory: 256Mi
-  ivscraper:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  tvscraper:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  ivanalyser:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  tvanalyser:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  mock_executor:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  stock_hub:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  aws_gateway:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
-  news_store:
-    image:
-      tag: dccb4542d1473911e9f5bf1b1f153b1d02daaf8a
+
 # Init Containers
 initContainers:
   dependencyChecks:
