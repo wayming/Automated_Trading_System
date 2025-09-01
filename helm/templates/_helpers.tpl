@@ -107,3 +107,7 @@ Return the Selenium Hub URL based on values.yaml
 {{- define "trade.seleniumHubURL" -}}
 http://{{ include "trade.fullname" . }}-{{ .Values.selenium.hub.serviceName }}:{{ .Values.selenium.hub.service.port }}/wd/hub
 {{- end -}}
+
+{{- define "trade.awsGatewayEndpoint" -}}
+{{- printf "%s-aws-gateway:%s" (include "trade.fullname" .) .Values.coreServices.awsGateway.service.port }}
+{{- end }}

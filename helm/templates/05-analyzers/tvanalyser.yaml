@@ -42,6 +42,8 @@ spec:
           value: {{ .Values.global.rabbitmqUser | quote }}
         - name: RABBITMQ_PASS
           value: {{ .Values.global.rabbitmqPass | quote }}
+        - name: AWS_GATEWAY_ENDPOINT
+          value: {{ include "trade.awsGatewayEndpoint" . | quote }}
         - name: DEEPSEEK_API_KEY
           valueFrom:
             secretKeyRef:

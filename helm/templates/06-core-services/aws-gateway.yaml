@@ -35,7 +35,7 @@ spec:
         imagePullPolicy: {{ .Values.coreServices.awsGateway.image.pullPolicy }}
         ports:
         - name: grpc
-          containerPort: 50053
+          containerPort: {{ .Values.coreServices.awsGateway.service.port }}
           protocol: TCP
         env:
         - name: RABBITMQ_URL
