@@ -80,7 +80,7 @@ scrapers:
     enabled: true
     image:
       repository: "ivscraper"
-      tag: "dccb4542d1473911e9f5bf1b1f153b1d02daaf8a"
+      tag: "f3d8d9705531b2b6a49782cd7093fce683de0b6c"
       pullPolicy: Always
     resources:
       limits:
@@ -99,7 +99,7 @@ scrapers:
     mqPass: "{{ .Values.rabbitmqPass }}"
     image:
       repository: "tvscraper"
-      tag: "dccb4542d1473911e9f5bf1b1f153b1d02daaf8a"
+      tag: "f3d8d9705531b2b6a49782cd7093fce683de0b6c"
       pullPolicy: Always
     resources:
       limits:
@@ -110,14 +110,13 @@ scrapers:
         memory: 512Mi
     env:
       DISPLAY: ":99"
-
 # analysers Configuration
 analysers:
   ivanalyser:
     enabled: true
     image:
       repository: "ivanalyser"
-      tag: "dccb4542d1473911e9f5bf1b1f153b1d02daaf8a"
+      tag: "f3d8d9705531b2b6a49782cd7093fce683de0b6c"
       pullPolicy: Always
     resources:
       limits:
@@ -130,7 +129,7 @@ analysers:
     enabled: true
     image:
       repository: "tvanalyser"
-      tag: "dccb4542d1473911e9f5bf1b1f153b1d02daaf8a"
+      tag: "f3d8d9705531b2b6a49782cd7093fce683de0b6c"
       pullPolicy: Always
     resources:
       limits:
@@ -139,14 +138,13 @@ analysers:
       requests:
         cpu: 250m
         memory: 512Mi
-
 # Core Services Configuration
 coreServices:
   mockExecutor:
     enabled: true
     image:
       repository: "mock_executor"
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: f3d8d9705531b2b6a49782cd7093fce683de0b6c
       pullPolicy: Always
     service:
       type: ClusterIP
@@ -162,7 +160,7 @@ coreServices:
     enabled: true
     image:
       repository: "stock_hub"
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: f3d8d9705531b2b6a49782cd7093fce683de0b6c
       pullPolicy: Always
     service:
       type: ClusterIP
@@ -178,7 +176,7 @@ coreServices:
     enabled: true
     image:
       repository: "aws_gateway"
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: f3d8d9705531b2b6a49782cd7093fce683de0b6c
       pullPolicy: Always
     service:
       type: ClusterIP
@@ -194,7 +192,7 @@ coreServices:
     enabled: true
     image:
       repository: "news_store"
-      tag: 1c2f5a4e0969516c4ec5e20636556bfaeaf5c44e
+      tag: f3d8d9705531b2b6a49782cd7093fce683de0b6c
       pullPolicy: Always
     resources:
       limits:
@@ -203,7 +201,6 @@ coreServices:
       requests:
         cpu: 250m
         memory: 256Mi
-
 # Init Containers
 initContainers:
   dependencyChecks:
