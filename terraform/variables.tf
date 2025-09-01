@@ -18,3 +18,15 @@ variable "bucket_name" {
   type    = string
   default = "qts-front"
 }
+
+variable "argo_namespace" {
+  type        = string
+  description = "Namespace where ArgoCD Application lives"
+  default     = "argocd"
+}
+
+variable "argo_app_name" {
+  type        = string
+  description = "Name of the ArgoCD Application to trigger"
+  default     = "trade-app"
+}

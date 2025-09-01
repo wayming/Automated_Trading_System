@@ -40,6 +40,12 @@ spec:
         env:
         - name: RABBITMQ_URL
           value: {{ include "trade.rabbitmqUrl" . | quote }}
+        - name: HTTP_API_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: aws-gateway-env
+              key: HTTP_API_ENDPOINT
+              optional: true
         volumeMounts:
         {{- if .Values.persistence.output.enabled }}
         - name: output-volume

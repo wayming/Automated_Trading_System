@@ -148,3 +148,10 @@ resource "aws_apigatewayv2_stage" "http_stage" {
     })
   }
 }
+
+#####################
+# Local for HTTP API endpoint
+#####################
+locals {
+  http_api_endpoint = "${aws_apigatewayv2_api.http_api.api_endpoint}/${var.stage_name}/send"
+}

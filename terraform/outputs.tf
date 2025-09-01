@@ -3,7 +3,7 @@
 #####################
 output "http_api_endpoint" {
   description = "HTTP API Endpoint URL for POST /send"
-  value       = "${aws_apigatewayv2_api.http_api.api_endpoint}/${var.stage_name}/send"
+  value       = local.http_api_endpoint
 }
 
 output "websocket_api_endpoint" {

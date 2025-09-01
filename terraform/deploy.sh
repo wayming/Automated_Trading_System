@@ -36,7 +36,4 @@ echo "Frontend domain: $CLOUDFRONT_DOMAIN"
 
 HTTP_API_ENDPOINT=$(terraform output -raw http_api_endpoint)
 echo "HTTP Push API: $HTTP_API_ENDPOINT"
-DOCKER_ENV="../docker/.env"
-sed -i '/^HTTP_API_ENDPOINT=/d' "$DOCKER_ENV"
-echo "HTTP_API_ENDPOINT=$HTTP_API_ENDPOINT" >> "$DOCKER_ENV"
 export HTTP_API_ENDPOINT=$HTTP_API_ENDPOINT
