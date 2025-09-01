@@ -11,4 +11,7 @@ helm template trade . -f values.yaml --debug \
 
 helm get manifest trade
 
+# show images
+kubectl get pods -n default -o jsonpath="{range .items[*]}{.metadata.name}{':\t'}{range .spec.containers[*]}{.image}{' '}{end}{'\n'}{end}"
+
 minikube mount /host/path/to/pv:/mount

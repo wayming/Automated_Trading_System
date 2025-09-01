@@ -37,6 +37,15 @@ helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo add weaviate https://weaviate.github.io/weaviate-helm
 helm repo update
 
+
+kubectl create secret generic trade-view-secret \
+  --from-literal=TRADE_VIEW_USER=$TRADE_VIEW_USER \
+  --from-literal=TRADE_VIEW_PASS=$TRADE_VIEW_PASS \
+  -n default
+
+kubectl create secret generic deepseek-api-secret \
+  --from-literal=DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY \
+  -n default
 # Minikube docker shell
 # eval $(minikube -p minikube docker-env)
 

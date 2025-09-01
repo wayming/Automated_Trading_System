@@ -47,12 +47,12 @@ spec:
         - name: TRADE_VIEW_USER
           valueFrom:
             secretKeyRef:
-              name: {{ include "trade.fullname" . }}-tvscraper-secret
+              name: trade-view-secret
               key: TRADE_VIEW_USER
         - name: TRADE_VIEW_PASS
           valueFrom:
             secretKeyRef:
-              name: {{ include "trade.fullname" . }}-tvscraper-secret
+              name: trade-view-secret
               key: TRADE_VIEW_PASS
         - name: RABBITMQ_HOST
           value: {{ include "trade.rabbitmqHost" . | quote }}

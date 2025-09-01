@@ -45,7 +45,7 @@ spec:
         - name: DEEPSEEK_API_KEY
           valueFrom:
             secretKeyRef:
-              name: {{ include "trade.fullname" . }}-deepseek-api-secret
+              name: deepseek-api-secret
               key: DEEPSEEK_API_KEY
         volumeMounts:
         {{- if .Values.persistence.output.enabled }}
