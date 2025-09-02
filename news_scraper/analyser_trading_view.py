@@ -18,7 +18,7 @@ from pathlib            import Path
 from .interface         import NewsAnalyser
 from datetime           import datetime
 from .executor_proxy    import TradeExecutor, MockTradeExecutorProxy
-from common             import new_logger, new_mq_conn, new_aws_conn
+from common             import get_logger, new_mq_conn, new_aws_conn
 from trade_policy       import TradePolicy
 from openai             import OpenAI
 from dataclasses        import asdict
@@ -39,7 +39,7 @@ QUEUE_TV_ARTICLES = "tv_articles"
 # destination
 QUEUE_PROCESSED_ARTICLES = "processed_articles"
 
-logger = new_logger("output/analyser_trading_view.log")
+logger = get_logger("output/analyser_trading_view.log")
 
 class TradingViewAnalyser(NewsAnalyser):
     def __init__(self, api_key: str, prompt_path: str):
@@ -192,7 +192,7 @@ async def main():
 
     logger.info("[Analyser_Trading_View] Connecting to AWS Gateway")
     analysis_push_gateway = None
-    aws_gateway_endpoint = os.getenv("AWS_GATEWAY_ENDPOINT")
+    aws_gateway_endpoint = os.getenv("AWS_GATEWAY_ENDPOINT")prompt
     if not aws_gateway_endpoint:
         logger.warning("[Analyser_Trading_View] No AWS Gateway endpoint configured. Analysis results will not be pushed.")
     else:

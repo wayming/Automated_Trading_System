@@ -52,13 +52,17 @@ RUN pip install --no-cache-dir \
     requests \
     beautifulsoup4 \
     pika \
-    prometheus_client
+    aio_pika \
+    prometheus_client \
+    grpcio grpcio-tools \
+    cachetools
 
 RUN useradd -m -u 1000 appuser
 
 # Copy the Python script into the container
 COPY news_scraper /app/news_scraper
 COPY news_model /app/news_model
+COPY proto /app/proto
 RUN chown -R appuser:appuser /app
 
 RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix

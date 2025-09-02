@@ -164,7 +164,7 @@ def main():
         if mq_conn.is_open:
             mq_conn.process_data_events() #Heartbeat
         else:
-            print("❌ RabbitMQ connection dropped.")
+            print("RabbitMQ connection dropped.")
             break
         
         articles = scraper.fetch_news(limit=5)
