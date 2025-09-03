@@ -2,60 +2,71 @@ import asyncio
 import os
 import threading
 import logging
+import sys
 
 class SafeSingletonLogger:
-    _the_logger = None
+    _instance = None
     _create_lock = threading.Lock()
-    def __init__(self, file_path: str):
-        self.file_path = file_path
 
     def __new__(cls, file_path: str):
-        if cls._the_logger:
-            return cls._the_logger
+        if cls._instance:
+            return cls._instance
 
         with cls._create_lock:
+            if cls._instance:
+                return cls._instance
+
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            logger = logging.getLogger(__name__)
+            logger = logging.getLogger("SafeSingletonLogger")
+            for handler in logger.handlers[:]:
+                handler.close()
+                logger.removeHandler(handler)
 
-            if not logger.handlers:
-                # Console handler
-                ch = logging.StreamHandler()
-                ch.setLevel(logging.INFO)
-                ch_formatter = logging.Formatter("[%(levelname)s] %(message)s")
-                ch.setFormatter(ch_formatter)
-                logger.addHandler(ch)
+            logger.setLevel(logging.INFO)
+            logger.propagate = False     # Prevent double logging
+            logger.write_lock = threading.Lock()
 
-                # File handler
-                fh = logging.FileHandler(file_path)
-                fh.setLevel(logging.INFO)
-                fh_formatter = logging.Formatter(
-                    "%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-                fh.setFormatter(fh_formatter)
+            for handler in logger.handlers[:]:
+                logger.removeHandler(handler)
+                handler.close()
 
-                logger.addHandler(fh)
-                logger.propagate = False     # Prevent double logging
-                logger.write_lock = threading.Lock()
-            cls._the_logger = logger
-        return cls._the_logger
+            # # Console handler
+            ch = logging.StreamHandler(sys.stdout)
+            ch.setLevel(logging.INFO)
+            ch_formatter = logging.Formatter(
+                "%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+            ch.setFormatter(ch_formatter)
+            logger.addHandler(ch)
+
+            # File handler
+            fh = logging.FileHandler(file_path)
+            fh.setLevel(logging.INFO)
+            fh_formatter = logging.Formatter(
+                "%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+            fh.setFormatter(fh_formatter)
+            logger.addHandler(fh)
+            
+            cls._instance = logger
+        return cls
 
     @classmethod
     def info(cls, msg: str):
-        if not cls._the_logger:
+        if not cls._instance:
             raise ValueError("Logger not initialized")
-        with cls._the_logger.write_lock:
-            cls._the_logger.info(msg)
+        with cls._instance.write_lock:
+            cls._instance.info(msg)
     
     @classmethod
     def error(cls, msg: str):
-        if not cls._the_logger:
+        if not cls._instance:
             raise ValueError("Logger not initialized")
-        with cls._the_logger.write_lock:
-            cls._the_logger.error(msg)
+        with cls._instance.write_lock:
+            cls._instance.error(msg)
 
     @classmethod
     def section(cls, section: str):
         line = "#" * 50
-        message = line + "\n#  " + section + "\n" + line
+        message = "\n" + line + "\n#  " + section + "\n" + line
         cls.info(message)
 
     @classmethod

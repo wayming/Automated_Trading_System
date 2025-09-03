@@ -123,25 +123,25 @@ async def handle_message(
         message_id=None
         try:
             message_id = str(uuid.uuid4())[:8]
-            await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View][{message_id}] New message received.")
+            await SafeSingletonLogger.ainfo(f"[{message_id}] New message received.")
             body_text = message.body.decode()
 
-            await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View][{message_id}] Analyzing message content...")
+            await SafeSingletonLogger.ainfo(f"[{message_id}] Analyzing message content...")
             article, struct_result, raw_text = analyser.analyse(body_text)
 
             analysis_message=None
             if struct_result is not None:
                 analysis_message = json.dumps(struct_result, indent=2, ensure_ascii=False)
-                await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View][{message_id}] Structured analysis result:\n%s", analysis_message)
-                await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View][{message_id}] Evaluating trade policy")
+                await SafeSingletonLogger.ainfo(f"[{message_id}] Structured analysis result:\n%s", analysis_message)
+                await SafeSingletonLogger.ainfo(f"[{message_id}] Evaluating trade policy")
                 trade_policy.evaluate(struct_result)
             else:
                 analysis_message = raw_text
-                await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View][{message_id}] No structured result, using raw text.")
+                await SafeSingletonLogger.ainfo(f"[{message_id}] No structured result, using raw text.")
 
             if analysis_push_gateway is not None:
                 start = time.time()
-                await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View][{message_id}] Pushing analysis results to AWS at {time.ctime(start)}")
+                await SafeSingletonLogger.ainfo(f"[{message_id}] Pushing analysis results to AWS at {time.ctime(start)}")
                 try:
                     response = await asyncio.wait_for(
                         analysis_push_gateway.Push(pb2.PushRequest(message=analysis_message)),
@@ -150,22 +150,22 @@ async def handle_message(
 # async def fire_and_forget_push(analysis_push_gateway, message, message_id):
 #     try:
 #         await analysis_push_gateway.Push(pb2.PushRequest(message=message))
-#         logger.info(f"[Analyser_Trading_View][{message_id}] Push fired (response ignored).")
+#         logger.info(f"[{message_id}] Push fired (response ignored).")
 #     except Exception as e:
-#         logger.error(f"[Analyser_Trading_View][{message_id}] Fire-and-forget Push failed: {e}")
+#         logger.error(f"[{message_id}] Fire-and-forget Push failed: {e}")
 
 # # In your handler:
 # asyncio.create_task(fire_and_forget_push(analysis_push_gateway, analysis_message, message_id))
 
-                    await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View][{message_id}] PushResponse: status_code=%d, response_text=%s",
+                    await SafeSingletonLogger.ainfo(f"[{message_id}] PushResponse: status_code=%d, response_text=%s",
                                 response.status_code, response.response_text)
                 except asyncio.TimeoutError:
-                    await SafeSingletonLogger.aerror(f"[Analyser_Trading_View][{message_id}] Push request timed out after {time.time() - start:.2f} seconds, skipping or retrying")
+                    await SafeSingletonLogger.aerror(f"[{message_id}] Push request timed out after {time.time() - start:.2f} seconds, skipping or retrying")
                 except Exception as grpc_err:
-                    await SafeSingletonLogger.aerror(f"[Analyser_Trading_View][{message_id}] Failed to push to AWS: {grpc_err}")
+                    await SafeSingletonLogger.aerror(f"[{message_id}] Failed to push to AWS: {grpc_err}")
 
             if struct_result is not None:
-                await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View][{message_id}] Pushing processed article to queue {QUEUE_PROCESSED_ARTICLES}")
+                await SafeSingletonLogger.ainfo(f"[{message_id}] Pushing processed article to queue {QUEUE_PROCESSED_ARTICLES}")
                 article_obj = ProcessedArticle(
                     uuid=message_id,
                     title=article['title'],
@@ -176,37 +176,37 @@ async def handle_message(
                 await push_to_queue(queue_processed_articles, json.dumps(asdict(article_obj)))
 
         except Exception as e:
-            await SafeSingletonLogger.aerror(f"[Analyser_Trading_View][{message_id}] Error processing message: {e}", exc_info=True)
+            await SafeSingletonLogger.aerror(f"[{message_id}] Error processing message: {e}", exc_info=True)
             if not message.channel.is_closed:
                 await message.reject(requeue=False)
             else:
-                await SafeSingletonLogger.ainfo("[Analyser_Trading_View][{message_id}] Cannot reject message — channel already closed.")
+                await SafeSingletonLogger.ainfo(f"[{message_id}] Cannot reject message — channel already closed.")
 
 
 async def main():
     # Singleton logger
     SafeSingletonLogger("output/analyser_trading_view.log")
 
-    await SafeSingletonLogger.ainfo("[Analyser_Trading_View] Connecting to RabbitMQ")
+    await SafeSingletonLogger.ainfo(" Connecting to RabbitMQ")
     connection, queue = await new_mq_conn(QUEUE_TV_ARTICLES)
 
     # Declare response queues
     queue_processed_articles = await queue.channel.declare_queue(QUEUE_PROCESSED_ARTICLES, durable=True)
 
-    await SafeSingletonLogger.ainfo("[Analyser_Trading_View] Connecting to AWS Gateway")
+    await SafeSingletonLogger.ainfo(" Connecting to AWS Gateway")
     analysis_push_gateway = None
-    aws_gateway_endpoint = os.getenv("AWS_GATEWAY_ENDPOINT")prompt
+    aws_gateway_endpoint = os.getenv("AWS_GATEWAY_ENDPOINT")
     if not aws_gateway_endpoint:
-        await SafeSingletonLogger.ainfo("[Analyser_Trading_View] No AWS Gateway endpoint configured. Analysis results will not be pushed.")
+        await SafeSingletonLogger.ainfo(" No AWS Gateway endpoint configured. Analysis results will not be pushed.")
     else:
-        await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View] Connecting to AWS Gateway at {aws_gateway_endpoint}")
+        await SafeSingletonLogger.ainfo(f" Connecting to AWS Gateway at {aws_gateway_endpoint}")
         try:
             analysis_push_gateway = await new_aws_conn(aws_gateway_endpoint)
         except Exception as e:
-            SafeSingletonLogger.aerror(f"[Analyser_Trading_View] Failed to initialize gRPC client for AWS Gateway: {e}")
+            SafeSingletonLogger.aerror(f" Failed to initialize gRPC client for AWS Gateway: {e}")
             analysis_push_gateway = None
 
-    await SafeSingletonLogger.ainfo("[Analyser_Trading_View] Creating deepseek analyser")
+    await SafeSingletonLogger.ainfo(" Creating deepseek analyser")
     this_dir = Path(__file__).parent
     if os.getenv("DEEPSEEK_API_KEY") is None or os.getenv("DEEPSEEK_API_KEY") == "":
         raise ValueError("DEEPSEEK_API_KEY is not set")
@@ -217,7 +217,7 @@ async def main():
         prompt_path=this_dir / "prompt.txt", # Under the same directory
     )
 
-    await SafeSingletonLogger.ainfo("[Analyser_Trading_View] Creating trade executor")
+    await SafeSingletonLogger.ainfo(" Creating trade executor")
     executor = MockTradeExecutorProxy()
     trade_policy = TradePolicy(executor=executor, logger=SafeSingletonLogger)
 

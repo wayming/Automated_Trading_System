@@ -261,7 +261,7 @@ async def article_publisher(channel: aio_pika.channel.Channel, message_queue: as
             
 
 async def main():
-    SafeSingletonLogger("output/trading_view_scraper.log")
+    SafeSingletonLogger("output/scraper_trading_view.log")
     SafeSingletonLogger.info("Starting scraper")
     username = os.getenv("TRADE_VIEW_USER")
     password = os.getenv("TRADE_VIEW_PASS")    
@@ -275,7 +275,7 @@ async def main():
     loop_stop = asyncio.Event()
 
     def _stop(signum, frame):
-        SafeSingletonLogger.ainfo(f"Gracefully shutting down for signal {signum}")
+        SafeSingletonLogger.info(f"Gracefully shutting down for signal {signum}")
         thread_stop.set()
         loop.call_soon_threadsafe(loop_stop.set)
     
@@ -298,7 +298,7 @@ async def main():
     await SafeSingletonLogger.ainfo("Shutting down RabbitMQ connection")
     await channel.close()
 
-    SafeSingletonLogger.ainfo("Shutting down scraper thread")
+    await SafeSingletonLogger.ainfo("Shutting down scraper thread")
     scraper_thread.join(timeout=5)
 
 if __name__ == "__main__":
