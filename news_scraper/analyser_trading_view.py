@@ -18,7 +18,7 @@ from pathlib            import Path
 from .interface         import NewsAnalyser
 from datetime           import datetime
 from .executor_proxy    import TradeExecutor, MockTradeExecutorProxy
-from common             import get_logger, new_mq_conn, new_aws_conn
+from common             import new_aws_conn
 from trade_policy       import TradePolicy
 from openai             import OpenAI
 from dataclasses        import asdict
@@ -30,6 +30,7 @@ from proto import analysis_push_gateway_pb2_grpc as pb2_grpc
 import uuid
 
 from news_model.processed_article import ProcessedArticle
+from singleton_logger import SafeSingletonLogger
 
 # This module is responsible for analyzing trading view articles using DeepSeek's LLM.
 
@@ -38,8 +39,6 @@ QUEUE_TV_ARTICLES = "tv_articles"
 
 # destination
 QUEUE_PROCESSED_ARTICLES = "processed_articles"
-
-logger = get_logger("output/analyser_trading_view.log")
 
 class TradingViewAnalyser(NewsAnalyser):
     def __init__(self, api_key: str, prompt_path: str):
@@ -97,11 +96,12 @@ class TradingViewAnalyser(NewsAnalyser):
 
         structured_result = self._extract_structured_response(response)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        logger.info("\n\n" + ">"*80 + "\n")
-        logger.info(f"Timestamp: {timestamp}\n")
-        logger.info("Full Response:\n")
-        logger.info(response)
-        logger.info("\n" + ">"*80 + "\n\n")
+        log_message = f"\n\n" + ">"*80 + "\n"
+        log_message += f"Timestamp: {timestamp}\n"
+        log_message += "Full Response:\n"
+        log_message += response
+        log_message += "\n" + ">"*80 + "\n\n"
+        logger.info(log_message)
 
         return article, structured_result, response.strip()
     
@@ -111,9 +111,9 @@ async def push_to_queue(queue: aio_pika.Queue, message: str):
             aio_pika.Message(body=message.encode()),
             routing_key=queue.name
         )
-        logger.info(f"Message pushed to queue {queue.name}: {message[:80]}...")
+        await SafeSingletonLogger.ainfo(f"Message pushed to queue {queue.name}: {message[:80]}...")
     except Exception as e:
-        logger.error(f"Failed to push message to queue {queue.name}: {e}")
+        await SafeSingletonLogger.aerror(f"Failed to push message to queue {queue.name}: {e}")
 
 async def handle_message(
         message: aio_pika.IncomingMessage,
@@ -123,25 +123,25 @@ async def handle_message(
         message_id=None
         try:
             message_id = str(uuid.uuid4())[:8]
-            logger.info(f"[Analyser_Trading_View][{message_id}] New message received.")
+            await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View][{message_id}] New message received.")
             body_text = message.body.decode()
 
-            logger.info(f"[Analyser_Trading_View][{message_id}] Analyzing message content...")
+            await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View][{message_id}] Analyzing message content...")
             article, struct_result, raw_text = analyser.analyse(body_text)
 
             analysis_message=None
             if struct_result is not None:
                 analysis_message = json.dumps(struct_result, indent=2, ensure_ascii=False)
-                logger.info(f"[Analyser_Trading_View][{message_id}] Structured analysis result:\n%s", analysis_message)
-                logger.info(f"[Analyser_Trading_View][{message_id}] Evaluating trade policy")
+                await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View][{message_id}] Structured analysis result:\n%s", analysis_message)
+                await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View][{message_id}] Evaluating trade policy")
                 trade_policy.evaluate(struct_result)
             else:
                 analysis_message = raw_text
-                logger.info(f"[Analyser_Trading_View][{message_id}] No structured result, using raw text.")
+                await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View][{message_id}] No structured result, using raw text.")
 
             if analysis_push_gateway is not None:
                 start = time.time()
-                logger.info(f"[Analyser_Trading_View][{message_id}] Pushing analysis results to AWS at {time.ctime(start)}")
+                await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View][{message_id}] Pushing analysis results to AWS at {time.ctime(start)}")
                 try:
                     response = await asyncio.wait_for(
                         analysis_push_gateway.Push(pb2.PushRequest(message=analysis_message)),
@@ -157,15 +157,15 @@ async def handle_message(
 # # In your handler:
 # asyncio.create_task(fire_and_forget_push(analysis_push_gateway, analysis_message, message_id))
 
-                    logger.info(f"[Analyser_Trading_View][{message_id}] PushResponse: status_code=%d, response_text=%s",
+                    await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View][{message_id}] PushResponse: status_code=%d, response_text=%s",
                                 response.status_code, response.response_text)
                 except asyncio.TimeoutError:
-                    logger.error(f"[Analyser_Trading_View][{message_id}] Push request timed out after {time.time() - start:.2f} seconds, skipping or retrying")
+                    await SafeSingletonLogger.aerror(f"[Analyser_Trading_View][{message_id}] Push request timed out after {time.time() - start:.2f} seconds, skipping or retrying")
                 except Exception as grpc_err:
-                    logger.error(f"[Analyser_Trading_View][{message_id}] Failed to push to AWS: {grpc_err}")
+                    await SafeSingletonLogger.aerror(f"[Analyser_Trading_View][{message_id}] Failed to push to AWS: {grpc_err}")
 
             if struct_result is not None:
-                logger.info(f"[Analyser_Trading_View][{message_id}] Pushing processed article to queue {QUEUE_PROCESSED_ARTICLES}")
+                await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View][{message_id}] Pushing processed article to queue {QUEUE_PROCESSED_ARTICLES}")
                 article_obj = ProcessedArticle(
                     uuid=message_id,
                     title=article['title'],
@@ -176,34 +176,37 @@ async def handle_message(
                 await push_to_queue(queue_processed_articles, json.dumps(asdict(article_obj)))
 
         except Exception as e:
-            logger.error(f"[Analyser_Trading_View][{message_id}] Error processing message: {e}", exc_info=True)
+            await SafeSingletonLogger.aerror(f"[Analyser_Trading_View][{message_id}] Error processing message: {e}", exc_info=True)
             if not message.channel.is_closed:
                 await message.reject(requeue=False)
             else:
-                logger.warning("[Analyser_Trading_View][{message_id}] Cannot reject message — channel already closed.")
+                await SafeSingletonLogger.ainfo("[Analyser_Trading_View][{message_id}] Cannot reject message — channel already closed.")
 
 
 async def main():
-    logger.info("[Analyser_Trading_View] Connecting to RabbitMQ")
+    # Singleton logger
+    SafeSingletonLogger("output/analyser_trading_view.log")
+
+    await SafeSingletonLogger.ainfo("[Analyser_Trading_View] Connecting to RabbitMQ")
     connection, queue = await new_mq_conn(QUEUE_TV_ARTICLES)
 
     # Declare response queues
     queue_processed_articles = await queue.channel.declare_queue(QUEUE_PROCESSED_ARTICLES, durable=True)
 
-    logger.info("[Analyser_Trading_View] Connecting to AWS Gateway")
+    await SafeSingletonLogger.ainfo("[Analyser_Trading_View] Connecting to AWS Gateway")
     analysis_push_gateway = None
     aws_gateway_endpoint = os.getenv("AWS_GATEWAY_ENDPOINT")prompt
     if not aws_gateway_endpoint:
-        logger.warning("[Analyser_Trading_View] No AWS Gateway endpoint configured. Analysis results will not be pushed.")
+        await SafeSingletonLogger.ainfo("[Analyser_Trading_View] No AWS Gateway endpoint configured. Analysis results will not be pushed.")
     else:
-        logger.info(f"[Analyser_Trading_View] Connecting to AWS Gateway at {aws_gateway_endpoint}")
+        await SafeSingletonLogger.ainfo(f"[Analyser_Trading_View] Connecting to AWS Gateway at {aws_gateway_endpoint}")
         try:
             analysis_push_gateway = await new_aws_conn(aws_gateway_endpoint)
         except Exception as e:
-            logger.error(f"[Analyser_Trading_View] Failed to initialize gRPC client for AWS Gateway: {e}")
+            SafeSingletonLogger.aerror(f"[Analyser_Trading_View] Failed to initialize gRPC client for AWS Gateway: {e}")
             analysis_push_gateway = None
 
-    logger.info("[Analyser_Trading_View] Creating deepseek analyser")
+    await SafeSingletonLogger.ainfo("[Analyser_Trading_View] Creating deepseek analyser")
     this_dir = Path(__file__).parent
     if os.getenv("DEEPSEEK_API_KEY") is None or os.getenv("DEEPSEEK_API_KEY") == "":
         raise ValueError("DEEPSEEK_API_KEY is not set")
@@ -214,11 +217,11 @@ async def main():
         prompt_path=this_dir / "prompt.txt", # Under the same directory
     )
 
-    logger.info("[Analyser_Trading_View] Creating trade executor")
+    await SafeSingletonLogger.ainfo("[Analyser_Trading_View] Creating trade executor")
     executor = MockTradeExecutorProxy()
-    trade_policy = TradePolicy(executor=executor, logger=logger)
+    trade_policy = TradePolicy(executor=executor, logger=SafeSingletonLogger)
 
-    logger.info("Setting up queue consumer")
+    await SafeSingletonLogger.ainfo("Setting up queue consumer")
     await queue.consume(
         partial(handle_message,
                 analyser=analyser,
@@ -232,12 +235,12 @@ async def main():
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, events.set)
 
-    logger.info("Consumer started, waiting for messages")
+    await SafeSingletonLogger.ainfo("Consumer started, waiting for messages")
     await events.wait()
 
-    logger.info("Shutting down")
+    await SafeSingletonLogger.ainfo("Shutting down")
     await connection.close()
-    logger.info("Shutdown complete")
+    await SafeSingletonLogger.ainfo("Shutdown complete")
 
 
 if __name__ == "__main__":

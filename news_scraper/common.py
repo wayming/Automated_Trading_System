@@ -5,57 +5,18 @@ import os
 import aio_pika
 import signal
 import grpc.aio
-from typing import Optional
+import asyncio
+from typing import Callable
 from cachetools import LRUCache
 from functools import wraps
 from proto import analysis_push_gateway_pb2 as pb2
 from proto import analysis_push_gateway_pb2_grpc as pb2_grpc
+from singleton_logger import SafeSingletonLogger
 
-_logger: Optional[logging.Logger] = None
-def get_logger(file_path: Optional[str] = None) -> logging.Logger:
-    global _logger
-    if _logger:
-        return _logger
-
-    if not file_path:
-        raise ValueError("file_path is required")
-    
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-
-    logger = logging.getLogger(file_path) # Single instance
-    logger.setLevel(logging.INFO)
-
-    if not logger.handlers:
-        # Console handler
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.INFO)
-        ch_formatter = logging.Formatter("[%(levelname)s] %(message)s")
-        ch.setFormatter(ch_formatter)
-        logger.addHandler(ch)
-
-        # File handler
-        fh = logging.FileHandler(file_path)
-        fh.setLevel(logging.INFO)
-        fh_formatter = logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-        fh.setFormatter(fh_formatter)
-
-        logger.addHandler(fh)
-        logger.propagate = False     # Prevent double logging
-    _logger = logger
-    return logger
-
-def log_section(logger: logging.Logger, section: str):
-    line = "#" * 50
-    logger.info(line)
-    logger.info("#  " + section)
-    logger.info(line)
-    
 async def new_mq_channel(queue_name: str) -> aio_pika.channel.Channel:
     host = os.getenv("RABBITMQ_HOST", "rabbitmq")
     username = os.getenv("RABBITMQ_USER", "admin")
     password = os.getenv("RABBITMQ_PASS", "password")
-    logger = get_logger()
 
     connection = None
     channel = None
@@ -69,10 +30,10 @@ async def new_mq_channel(queue_name: str) -> aio_pika.channel.Channel:
             )
             channel = await connection.channel()
             await channel.declare_queue(queue_name, durable=True)
-            logger.info(f"Connected to RabbitMQ and declared queue '{queue_name}'")
+            SafeSingletonLogger.info(f"Connected to RabbitMQ and declared queue '{queue_name}'")
             return channel
         except Exception as e:
-            logger.error(f"Failed to connect to RabbitMQ: {e}")
+            SafeSingletonLogger.error(f"Failed to connect to RabbitMQ: {e}")
             await asyncio.sleep(5)
 
 async def new_aws_conn(endpoint: str):
@@ -96,3 +57,11 @@ def cached_fetcher(maxsize: int):
             return result
         return wrapper
     return decorator
+
+def busy_loop(callable: Callable[[], bool], timeout: int = 1):
+    for _ in range(timeout):
+        if callable():
+            break
+        else:
+            time.sleep(1)
+    raise Exception(f"callable {callable} timeout")
