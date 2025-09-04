@@ -7,7 +7,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.remote.webdriver import RemoteWebDriver
+from selenium.webdriver import Remote as RemoteWebDriver
 from selenium.webdriver.chrome.options import Options
 from .lru_cache import LRUCache
 from .interface import NewsScraper

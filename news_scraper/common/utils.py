@@ -7,6 +7,10 @@ import asyncio
 import aio_pika
 import time
 import grpc
+from selenium.webdriver import Remote as RemoteWebDriver
+from selenium.webdriver.chrome.options import Options
+from proto import analysis_push_gateway_pb2 as pb2
+from proto import analysis_push_gateway_pb2_grpc as pb2_grpc
 
 def cached_fetcher(maxsize: int):
     def decorator(func):
@@ -46,13 +50,26 @@ async def new_mq_channel() -> aio_pika.channel.Channel:
             SingletonLoggerSafe.error(f"Failed to connect to RabbitMQ: {e}")
             await asyncio.sleep(5)
 
-async def new_aws_conn(endpoint: str):
+async def new_aws_conn(endpoint: str) -> pb2_grpc.AnalysisPushGatewayStub:
     """ Caller needs to handle the exception
     """
     channel = grpc.aio.insecure_channel(endpoint)
     stub = pb2_grpc.AnalysisPushGatewayStub(channel)
     return stub
 
+
+def new_webdriver(selenium_hub_url: str) -> RemoteWebDriver:
+    options = Options()
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-gpu")
+
+    SingletonLoggerSafe.info(f"Using Selenium Hub URL: {selenium_hub_url}")
+    driver = RemoteWebDriver(
+        command_executor=selenium_hub_url,
+        options=options
+    )
+    return driver
 
 def busy_loop(callable: Callable[[], bool], timeout: int = 1):
     for _ in range(timeout):
@@ -61,3 +78,4 @@ def busy_loop(callable: Callable[[], bool], timeout: int = 1):
         else:
             time.sleep(1)
     raise Exception(f"callable {callable} timeout")
+

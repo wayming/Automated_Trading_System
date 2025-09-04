@@ -14,7 +14,11 @@ class NewsScraper(ABC):
     def fetch_news(self, limit: int) -> List[str]:
         pass
 
-class ScraperFactory(ABC):
+class ScraperContext(ABC):
     @abstractmethod
-    def create_scraper(self) -> NewsScraper:
+    def __enter__(self):
+        pass
+    
+    @abstractmethod
+    def __exit__(self, exc_type, exc_val, exc_tb):
         pass

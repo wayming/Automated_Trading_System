@@ -6,16 +6,19 @@ import signal
 from prometheus_client import Counter
 from prometheus_client import Gauge
 
-from scrapers.trade_view import TVScraperFactory
+from scrapers.trade_view import TVScraperContext
 from scrapers.scraper_worker import scraper_worker
 from scrapers.publish_worker import article_publisher
 from common.utils import new_mq_channel
 from common.logger import SingletonLoggerSafe
+from common.utils import new_webdriver
+
 
 SCRAPE_COUNT = Counter("scraper_runs_total", "Number of scraper runs")
 SCRAPE_ERRORS = Counter("scraper_errors_total", "Number of errors during scraping")
 LAST_SCRAPE = Gauge("scraper_last_scrape_timestamp", "Last scrape time (unix)")
 QUEUE_TV_ARTICLES = "tv_articles"
+
 async def main():
     SingletonLoggerSafe("output/scraper_trading_view.log")
     SingletonLoggerSafe.info("Starting scraper")
@@ -25,6 +28,11 @@ async def main():
         await SingletonLoggerSafe.aerror("Missing credentials. Set TRADE_VIEW_USER and TRADE_VIEW_PASS in your environment.")
         return
 
+    hub_url = os.getenv("SELENIUM_HUB_URL", "http://selenium-hub:4444/wd/hub")
+    if not hub_url:
+        await SingletonLoggerSafe.aerror("Missing Selenium Hub URL. Set SELENIUM_HUB_URL in your environment.")
+        return
+    
     loop = asyncio.get_event_loop()
     thread_stop = threading.Event()
     message_queue = asyncio.Queue()
@@ -39,7 +47,9 @@ async def main():
     signal.signal(signal.SIGTERM, _stop)
     
     # Start scraper thread
-    scraper_thread = threading.Thread(target=scraper_worker, args=(loop, message_queue, thread_stop, TVScraperFactory(username, password)))
+    driver = new_webdriver(hub_url)
+    scraper_context = TVScraperContext(driver, username, password)
+    scraper_thread = threading.Thread(target=scraper_worker, args=(loop, message_queue, thread_stop, scraper_context))
     scraper_thread.start()
     
     # Start message consumer

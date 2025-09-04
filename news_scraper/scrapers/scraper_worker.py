@@ -2,12 +2,18 @@ import asyncio
 import threading
 import time
 from common.logger import SingletonLoggerSafe
-from common.interface import ScraperFactory
+from common.interface import ScraperContext
 
-def scraper_worker(loop: asyncio.AbstractEventLoop, message_queue: asyncio.Queue, stop_event: threading.Event, scraper_factory: ScraperFactory):
+LOGIN_RETRY_TIMEOUT = 60
+SCRAPE_INTERVAL = 10
+def scraper_worker(
+    loop: asyncio.AbstractEventLoop,
+    message_queue: asyncio.Queue,
+    stop_event: threading.Event,
+    context: ScraperContext):
 
-    with scraper_factory.create_scraper() as scraper:
-        giveup_time = time.time() + 60
+    with context as scraper:
+        giveup_time = time.time() + LOGIN_RETRY_TIMEOUT
         while not scraper.login():
             SingletonLoggerSafe.error("tradingview login failed. Retrying...")
             if time.time() > giveup_time:
@@ -15,8 +21,8 @@ def scraper_worker(loop: asyncio.AbstractEventLoop, message_queue: asyncio.Queue
                 return
             stop_event.wait(5)
 
-        # fetch news every 10 seconds unless stop_event is set
-        while not stop_event.wait(10):
+        # fetch news every SCRAPE_INTERVAL seconds unless stop_event is set
+        while not stop_event.wait(SCRAPE_INTERVAL):
             try:
                 for article in scraper.fetch_news(limit=5):
                     if article:

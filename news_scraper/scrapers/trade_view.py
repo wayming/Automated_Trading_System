@@ -11,48 +11,34 @@ from selenium.webdriver.support    import expected_conditions as EC
 from selenium.webdriver import Remote as RemoteWebDriver
 from selenium.webdriver.chrome.options import Options
 from common.logger import SingletonLoggerSafe
-from common.interface import NewsScraper, ScraperFactory
+from common.interface import NewsScraper, ScraperContext
 from common.utils import cached_fetcher
 
-class TVScraperFactory(ScraperFactory):
-    def __init__(self, username: str, password: str):
-        self.username = username
-        self.password = password
-    
-    def create_scraper(self) -> NewsScraper:
-        return TradingViewScraper(username=self.username, password=self.password)
+
 
 class TradingViewScraper(NewsScraper):
     def __init__(
             self,
             username: str,
             password: str,
+            driver: RemoteWebDriver = None,
+            driver_timeout: int = 20,
             cookies_path="output/trading_view_cookies.pkl"):
         self.username = username
         self.password = password
         self.cookies_path = cookies_path
-        self.driver = None
+        self.driver = driver
+        self.driver_timeout = driver_timeout
         self.output_dir = "output/trading_view"
         os.makedirs(self.output_dir, exist_ok=True)
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.driver:
-            self.driver.quit()
-        self.driver = None
-
     def login(self) -> bool:
-        wait = WebDriverWait(self.driver, 20)
-
         if os.path.exists(self.cookies_path):
-            self.driver = self._start_driver()
             self.driver.get("https://www.tradingview.com/news-flow/")
             try:
                 self._load_cookies()
                 self.driver.refresh()
-                WebDriverWait(self.driver, 20).until(
+                WebDriverWait(self.driver, self.driver_timeout).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, ".filtersBar-YXVzia8q"))
                 )
                 SingletonLoggerSafe.info("Logged in using saved cookies.")
@@ -61,8 +47,6 @@ class TradingViewScraper(NewsScraper):
             except Exception:
                 SingletonLoggerSafe.error("Failed to login with cookies. Logging in manually.")
                 traceback.print_exc()  # shows full traceback
-                self.driver.quit()
-                self.driver = None
                 return False
 
         # Start fresh and log in
@@ -96,20 +80,6 @@ class TradingViewScraper(NewsScraper):
         finally:
             SingletonLoggerSafe.info(f"Scraped {count} articles.")
 
-    def _start_driver(self):
-        options = Options()
-        options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-gpu")
-
-        hub_url = os.getenv("SELENIUM_HUB_URL", "http://selenium-hub:4444/wd/hub")
-        SingletonLoggerSafe.info(f"Using Selenium Hub URL: {hub_url}")
-        driver = RemoteWebDriver(
-            command_executor=hub_url,
-            options=options
-        )
-        return driver
-
     def _save_cookies(self):
         with open(self.cookies_path, "wb") as file:
             pickle.dump(self.driver.get_cookies(), file)
@@ -125,8 +95,7 @@ class TradingViewScraper(NewsScraper):
         return text[:max_length]
     
     def _new_login(self) -> bool:
-        self.driver = self._start_driver()
-        wait = WebDriverWait(self.driver, 10)
+        wait = WebDriverWait(self.driver, self.driver_timeout)
         self.driver.get("https://www.tradingview.com/#signin")
 
         try:
@@ -160,15 +129,12 @@ class TradingViewScraper(NewsScraper):
         except Exception as e:
             SingletonLoggerSafe.error("Login failed with exception:")
             traceback.print_exc()
-            self.driver.quit()
             return False
 
     def _extract_article(self, html_text):
         soup = BeautifulSoup(html_text, 'html.parser')
-
         title = soup.find('h1', class_='title-KX2tCBZq')
         content = soup.find('div', class_='body-KX2tCBZq')
-
         return {
             "title": title.text.strip() if title else "No Title",
             "content": "\n".join(p.get_text(strip=True) for p in content.find_all('p')) if content else "No Content"
@@ -179,7 +145,6 @@ class TradingViewScraper(NewsScraper):
 
         SingletonLoggerSafe.info(f"Reading new article.")
         SingletonLoggerSafe.info(f"title: {title}\nlink: {link}\n")
-
         try:
             self.driver.get(link)
             WebDriverWait(self.driver, 5).until(
@@ -199,3 +164,21 @@ class TradingViewScraper(NewsScraper):
             return article
         except Exception as e:
             SingletonLoggerSafe.error(f"Failed to read article: {e}")
+
+
+class TVScraperContext(ScraperContext):
+    def __init__(self, driver: RemoteWebDriver, username: str, password: str):
+        self.driver = driver
+        self.username = username
+        self.password = password
+    
+    def __enter__(self) -> TradingViewScraper:
+        return TradingViewScraper(
+            driver = self.driver,
+            username = self.username,
+            password = self.password)
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.driver:
+            self.driver.quit()
+        self.driver = None
