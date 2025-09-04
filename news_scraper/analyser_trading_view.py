@@ -24,13 +24,12 @@ from openai             import OpenAI
 from dataclasses        import asdict
 from datetime           import datetime, timezone
 
-import grpc.aio
 from proto import analysis_push_gateway_pb2 as pb2
 from proto import analysis_push_gateway_pb2_grpc as pb2_grpc
 import uuid
 
 from news_model.processed_article import ProcessedArticle
-from singleton_logger import SafeSingletonLogger
+from common.logger import SingletonLoggerSafe
 
 # This module is responsible for analyzing trading view articles using DeepSeek's LLM.
 
@@ -111,9 +110,9 @@ async def push_to_queue(queue: aio_pika.Queue, message: str):
             aio_pika.Message(body=message.encode()),
             routing_key=queue.name
         )
-        await SafeSingletonLogger.ainfo(f"Message pushed to queue {queue.name}: {message[:80]}...")
+        await SingletonLoggerSafe.ainfo(f"Message pushed to queue {queue.name}: {message[:80]}...")
     except Exception as e:
-        await SafeSingletonLogger.aerror(f"Failed to push message to queue {queue.name}: {e}")
+        await SingletonLoggerSafe.aerror(f"Failed to push message to queue {queue.name}: {e}")
 
 async def handle_message(
         message: aio_pika.IncomingMessage,
@@ -123,25 +122,25 @@ async def handle_message(
         message_id=None
         try:
             message_id = str(uuid.uuid4())[:8]
-            await SafeSingletonLogger.ainfo(f"[{message_id}] New message received.")
+            await SingletonLoggerSafe.ainfo(f"[{message_id}] New message received.")
             body_text = message.body.decode()
 
-            await SafeSingletonLogger.ainfo(f"[{message_id}] Analyzing message content...")
+            await SingletonLoggerSafe.ainfo(f"[{message_id}] Analyzing message content...")
             article, struct_result, raw_text = analyser.analyse(body_text)
 
             analysis_message=None
             if struct_result is not None:
                 analysis_message = json.dumps(struct_result, indent=2, ensure_ascii=False)
-                await SafeSingletonLogger.ainfo(f"[{message_id}] Structured analysis result:\n%s", analysis_message)
-                await SafeSingletonLogger.ainfo(f"[{message_id}] Evaluating trade policy")
+                await SingletonLoggerSafe.ainfo(f"[{message_id}] Structured analysis result:\n%s", analysis_message)
+                await SingletonLoggerSafe.ainfo(f"[{message_id}] Evaluating trade policy")
                 trade_policy.evaluate(struct_result)
             else:
                 analysis_message = raw_text
-                await SafeSingletonLogger.ainfo(f"[{message_id}] No structured result, using raw text.")
+                await SingletonLoggerSafe.ainfo(f"[{message_id}] No structured result, using raw text.")
 
             if analysis_push_gateway is not None:
                 start = time.time()
-                await SafeSingletonLogger.ainfo(f"[{message_id}] Pushing analysis results to AWS at {time.ctime(start)}")
+                await SingletonLoggerSafe.ainfo(f"[{message_id}] Pushing analysis results to AWS at {time.ctime(start)}")
                 try:
                     response = await asyncio.wait_for(
                         analysis_push_gateway.Push(pb2.PushRequest(message=analysis_message)),
@@ -157,15 +156,15 @@ async def handle_message(
 # # In your handler:
 # asyncio.create_task(fire_and_forget_push(analysis_push_gateway, analysis_message, message_id))
 
-                    await SafeSingletonLogger.ainfo(f"[{message_id}] PushResponse: status_code=%d, response_text=%s",
+                    await SingletonLoggerSafe.ainfo(f"[{message_id}] PushResponse: status_code=%d, response_text=%s",
                                 response.status_code, response.response_text)
                 except asyncio.TimeoutError:
-                    await SafeSingletonLogger.aerror(f"[{message_id}] Push request timed out after {time.time() - start:.2f} seconds, skipping or retrying")
+                    await SingletonLoggerSafe.aerror(f"[{message_id}] Push request timed out after {time.time() - start:.2f} seconds, skipping or retrying")
                 except Exception as grpc_err:
-                    await SafeSingletonLogger.aerror(f"[{message_id}] Failed to push to AWS: {grpc_err}")
+                    await SingletonLoggerSafe.aerror(f"[{message_id}] Failed to push to AWS: {grpc_err}")
 
             if struct_result is not None:
-                await SafeSingletonLogger.ainfo(f"[{message_id}] Pushing processed article to queue {QUEUE_PROCESSED_ARTICLES}")
+                await SingletonLoggerSafe.ainfo(f"[{message_id}] Pushing processed article to queue {QUEUE_PROCESSED_ARTICLES}")
                 article_obj = ProcessedArticle(
                     uuid=message_id,
                     title=article['title'],
@@ -176,37 +175,37 @@ async def handle_message(
                 await push_to_queue(queue_processed_articles, json.dumps(asdict(article_obj)))
 
         except Exception as e:
-            await SafeSingletonLogger.aerror(f"[{message_id}] Error processing message: {e}", exc_info=True)
+            await SingletonLoggerSafe.aerror(f"[{message_id}] Error processing message: {e}", exc_info=True)
             if not message.channel.is_closed:
                 await message.reject(requeue=False)
             else:
-                await SafeSingletonLogger.ainfo(f"[{message_id}] Cannot reject message — channel already closed.")
+                await SingletonLoggerSafe.ainfo(f"[{message_id}] Cannot reject message — channel already closed.")
 
 
 async def main():
     # Singleton logger
-    SafeSingletonLogger("output/analyser_trading_view.log")
+    SingletonLoggerSafe("output/analyser_trading_view.log")
 
-    await SafeSingletonLogger.ainfo(" Connecting to RabbitMQ")
+    await SingletonLoggerSafe.ainfo(" Connecting to RabbitMQ")
     connection, queue = await new_mq_conn(QUEUE_TV_ARTICLES)
 
     # Declare response queues
     queue_processed_articles = await queue.channel.declare_queue(QUEUE_PROCESSED_ARTICLES, durable=True)
 
-    await SafeSingletonLogger.ainfo(" Connecting to AWS Gateway")
+    await SingletonLoggerSafe.ainfo(" Connecting to AWS Gateway")
     analysis_push_gateway = None
     aws_gateway_endpoint = os.getenv("AWS_GATEWAY_ENDPOINT")
     if not aws_gateway_endpoint:
-        await SafeSingletonLogger.ainfo(" No AWS Gateway endpoint configured. Analysis results will not be pushed.")
+        await SingletonLoggerSafe.ainfo(" No AWS Gateway endpoint configured. Analysis results will not be pushed.")
     else:
-        await SafeSingletonLogger.ainfo(f" Connecting to AWS Gateway at {aws_gateway_endpoint}")
+        await SingletonLoggerSafe.ainfo(f" Connecting to AWS Gateway at {aws_gateway_endpoint}")
         try:
             analysis_push_gateway = await new_aws_conn(aws_gateway_endpoint)
         except Exception as e:
-            SafeSingletonLogger.aerror(f" Failed to initialize gRPC client for AWS Gateway: {e}")
+            SingletonLoggerSafe.aerror(f" Failed to initialize gRPC client for AWS Gateway: {e}")
             analysis_push_gateway = None
 
-    await SafeSingletonLogger.ainfo(" Creating deepseek analyser")
+    await SingletonLoggerSafe.ainfo(" Creating deepseek analyser")
     this_dir = Path(__file__).parent
     if os.getenv("DEEPSEEK_API_KEY") is None or os.getenv("DEEPSEEK_API_KEY") == "":
         raise ValueError("DEEPSEEK_API_KEY is not set")
@@ -217,11 +216,11 @@ async def main():
         prompt_path=this_dir / "prompt.txt", # Under the same directory
     )
 
-    await SafeSingletonLogger.ainfo(" Creating trade executor")
+    await SingletonLoggerSafe.ainfo(" Creating trade executor")
     executor = MockTradeExecutorProxy()
-    trade_policy = TradePolicy(executor=executor, logger=SafeSingletonLogger)
+    trade_policy = TradePolicy(executor=executor, logger=SingletonLoggerSafe)
 
-    await SafeSingletonLogger.ainfo("Setting up queue consumer")
+    await SingletonLoggerSafe.ainfo("Setting up queue consumer")
     await queue.consume(
         partial(handle_message,
                 analyser=analyser,
@@ -235,12 +234,12 @@ async def main():
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, events.set)
 
-    await SafeSingletonLogger.ainfo("Consumer started, waiting for messages")
+    await SingletonLoggerSafe.ainfo("Consumer started, waiting for messages")
     await events.wait()
 
-    await SafeSingletonLogger.ainfo("Shutting down")
+    await SingletonLoggerSafe.ainfo("Shutting down")
     await connection.close()
-    await SafeSingletonLogger.ainfo("Shutdown complete")
+    await SingletonLoggerSafe.ainfo("Shutdown complete")
 
 
 if __name__ == "__main__":

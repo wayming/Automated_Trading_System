@@ -12,7 +12,7 @@ from bs4                import BeautifulSoup
 from requests.adapters  import HTTPAdapter
 from urllib3.util.retry import Retry
 from pathlib            import Path
-from .interface         import NewsAnalyser
+from common.interface         import NewsAnalyser
 from datetime           import datetime
 from .executor_proxy    import TradeExecutor, MockTradeExecutorProxy
 

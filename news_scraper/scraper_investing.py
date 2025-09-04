@@ -1,11 +1,7 @@
 import os
 import time
-from collections import OrderedDict
 import re
 from typing import List
-
-import requests
-from bs4 import BeautifulSoup
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -15,7 +11,6 @@ from selenium.webdriver.remote.webdriver import RemoteWebDriver
 from selenium.webdriver.chrome.options import Options
 from .lru_cache import LRUCache
 from .interface import NewsScraper
-import traceback
 import pika
 
 QUEUE_IV_ARTICLES = "iv_articles"

@@ -4,7 +4,7 @@ import threading
 import logging
 import sys
 
-class SafeSingletonLogger:
+class SingletonLoggerSafe:
     _instance = None
     _create_lock = threading.Lock()
 
@@ -17,7 +17,7 @@ class SafeSingletonLogger:
                 return cls._instance
 
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            logger = logging.getLogger("SafeSingletonLogger")
+            logger = logging.getLogger("SingletonLoggerSafe")
             for handler in logger.handlers[:]:
                 handler.close()
                 logger.removeHandler(handler)
