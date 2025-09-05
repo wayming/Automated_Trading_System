@@ -12,6 +12,8 @@ from selenium.webdriver.chrome.options import Options
 from proto import analysis_push_gateway_pb2 as pb2
 from proto import analysis_push_gateway_pb2_grpc as pb2_grpc
 
+MQ_CONNECT_TIMEOUT = 60 # seconds
+
 def cached_fetcher(maxsize: int):
     def decorator(func):
         already_processed = LRUCache(maxsize)
@@ -28,14 +30,15 @@ def cached_fetcher(maxsize: int):
     return decorator
 
 
-async def new_mq_channel() -> aio_pika.channel.Channel:
+async def new_mq_channel(timeout = MQ_CONNECT_TIMEOUT) -> aio_pika.channel.Channel:
     host = os.getenv("RABBITMQ_HOST", "rabbitmq")
     username = os.getenv("RABBITMQ_USER", "admin")
     password = os.getenv("RABBITMQ_PASS", "password")
 
     connection = None
     channel = None
-    while True:
+    giveup_time = time.time() + timeout
+    while time.time() < giveup_time:
         try:
             connection = await aio_pika.connect_robust(
                 host=host,
@@ -49,6 +52,7 @@ async def new_mq_channel() -> aio_pika.channel.Channel:
         except Exception as e:
             SingletonLoggerSafe.error(f"Failed to connect to RabbitMQ: {e}")
             await asyncio.sleep(5)
+    raise Exception("Failed to connect to RabbitMQ")
 
 async def new_aws_conn(endpoint: str) -> pb2_grpc.AnalysisPushGatewayStub:
     """ Caller needs to handle the exception
