@@ -3,7 +3,7 @@ import asyncio
 import signal
 from pathlib import Path
 from functools import partial
-from common.utils       import new_mq_channel
+from common.utils       import new_mq_channel, new_aws_conn
 from common.logger      import SingletonLoggerSafe
 from analysers.providers   import DeepSeekProvider
 from analysers.article_analyser   import ArticleAnalyser, consume_message, graceful_shutdown

@@ -57,12 +57,11 @@ class ArticleAnalyser(NewsAnalyser):
             SingletonLoggerSafe.error(f"Failed to decode JSON struct.\n{match.group(1)}\nError: {e}")
             return None
 
-    def analyse(self, html_text: str) -> Tuple[Optional[dict], str]:
-        article = self._extract_article(html_text)
-        with open(self.prompt_path, 'r', encoding='utf-8') as f:
+    def analyse(self, article: str) -> Tuple[Optional[dict], str]:
+        with open(self.provider.prompt_path, 'r', encoding='utf-8') as f:
             base_prompt = f.read()
 
-        prompt = f"{base_prompt}\n\n---\n\nTitle: {article['title']}\n\nContent:\n{article['content']}"
+        prompt = f"{base_prompt}\n\n---\n\n{article}"
         response = self._send_to_llm(prompt)
 
         structured_result = self._extract_structured_response(response)
