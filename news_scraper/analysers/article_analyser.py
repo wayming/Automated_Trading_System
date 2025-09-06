@@ -18,6 +18,11 @@ from news_model.message import ArticleMessage
 from analysers.providers import LLMProvider
 from trade_policy import TradePolicy
 
+from langchain_openai import ChatOpenAI, OpenAI
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_core.tools import tool
+from langchain_core.prompts import ChatPromptTemplate
+
 # This module is responsible for analyzing trading view articles using DeepSeek's LLM.
 
 # timeout for push to AWS
@@ -26,23 +31,22 @@ TIMEOUT_PUSH_TO_AWS = 600
 class ArticleAnalyser(NewsAnalyser):
     def __init__(self, provider: LLMProvider):
         self.provider = provider
-        self.ds_client = OpenAI(api_key=self.provider.api_key, base_url=self.provider.base_url)
+        self.tools = [self.sample_tool]
+        self.llm = ChatOpenAI(
+            model=provider.model_name,
+            temperature=0.0,
+            api_key=provider.api_key,
+            base_url=provider.base_url,
+            tools=self.tools
+        )
 
+        self.llm_tools = self.llm.bind_tools(self.tools)
+            
     def __enter__(self):
         return self
+    
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.ds_client.close()
-
-    def _send_to_llm(self, prompt_text):
-        response = self.ds_client.chat.completions.create(
-            model=self.provider.model_name,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant"},
-                {"role": "user", "content": prompt_text},
-            ],
-            stream=False
-        )
-        return response.choices[0].message.content
+        self.llm.close()
 
     def _extract_structured_response(self, response_text):
         pattern = r'^-{3,}\s*\n(.*?)\n-{3,}$'
@@ -57,23 +61,28 @@ class ArticleAnalyser(NewsAnalyser):
             SingletonLoggerSafe.error(f"Failed to decode JSON struct.\n{match.group(1)}\nError: {e}")
             return None
 
+    @tool
+    def sample_tool(self):
+        """Sample tool"""
+        return "Sample tool"
+    
     def analyse(self, article_content: str) -> Tuple[Optional[dict], str]:
         with open(self.provider.prompt_path, 'r', encoding='utf-8') as f:
             base_prompt = f.read()
 
         prompt = f"{base_prompt}\n\n---\n\n{article_content}"
-        response = self._send_to_llm(prompt)
+        response = self.llm_tools.invoke(prompt)
 
-        structured_result = self._extract_structured_response(response)
+        structured_result = self._extract_structured_response(response.content)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_message = f"\n\n" + ">"*80 + "\n"
         log_message += f"Timestamp: {timestamp}\n"
         log_message += "Full Response:\n"
-        log_message += response
+        log_message += response.content
         log_message += "\n" + ">"*80 + "\n\n"
         SingletonLoggerSafe.info(log_message)
 
-        return structured_result, response.strip()
+        return structured_result, response.content
 
 # Push processed article to processed articles queue
 async def push_to_processed_queue(queue: aio_pika.Queue, article: ArticleMessage):
