@@ -122,6 +122,8 @@ services:
         condition: service_healthy # RabbitMQ begin to accept connections
       mock_executor:
         condition: service_started
+      aws_gateway:
+        condition: service_started
     networks:
       - scraper-network
 
@@ -156,6 +158,8 @@ services:
       dockerfile: docker/Dockerfile.aws.gateway
     ports:
       - "50053:50053"
+    environment:
+      - HTTP_API_ENDPOINT=${HTTP_API_ENDPOINT}
     volumes:
       - ../output:/app/output  # Mount volume
     networks:

@@ -13,7 +13,7 @@ from selenium.webdriver.chrome.options import Options
 from common.logger import SingletonLoggerSafe
 from common.interface import NewsScraper, ScraperContext
 from common.utils import cached_fetcher
-
+from news_model.message import ArticleMessage
 
 
 class TradingViewScraper(NewsScraper):
@@ -52,7 +52,7 @@ class TradingViewScraper(NewsScraper):
         # Start fresh and log in
         return self._new_login()
 
-    def fetch_news(self, limit=5) -> List[dict]:
+    def fetch_news(self, limit=5) -> List[ArticleMessage]:
         SingletonLoggerSafe.section("Starting new scan(www.tradingview.com)")
         count = 0
         try:
@@ -131,17 +131,18 @@ class TradingViewScraper(NewsScraper):
             traceback.print_exc()
             return False
 
-    def _extract_article(self, html_text):
+
+    def _extract_article(self, html_text) -> ArticleMessage:
         soup = BeautifulSoup(html_text, 'html.parser')
         title = soup.find('h1', class_='title-KX2tCBZq')
         content = soup.find('div', class_='body-KX2tCBZq')
-        return {
-            "title": title.text.strip() if title else "No Title",
-            "content": "\n".join(p.get_text(strip=True) for p in content.find_all('p')) if content else "No Content"
-        }
+        return ArticleMessage(
+            title=title.text.strip() if title else "No Title",
+            content="\n".join(p.get_text(strip=True) for p in content.find_all('p')) if content else "No Content"
+        )
 
     @cached_fetcher(20)
-    def _process_html(self, link: str, title: str) -> Optional[dict]:
+    def _process_html(self, link: str, title: str) -> ArticleMessage:
 
         SingletonLoggerSafe.info(f"Reading new article.")
         SingletonLoggerSafe.info(f"title: {title}\nlink: {link}\n")

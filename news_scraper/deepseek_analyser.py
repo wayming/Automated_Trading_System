@@ -14,9 +14,6 @@ from trade_policy import TradePolicy
 QUEUE_TV_ARTICLES = "tv_articles"
 # destination
 QUEUE_PROCESSED_ARTICLES = "processed_articles"
-# timeout for push to AWS
-TIMEOUT_PUSH_TO_AWS = 600
-
 
 async def main():
     # Singleton logger

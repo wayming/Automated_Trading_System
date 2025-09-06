@@ -11,24 +11,24 @@ from dataclasses        import asdict
 from openai             import OpenAI
 from proto import analysis_push_gateway_pb2 as pb2
 from proto import analysis_push_gateway_pb2_grpc as pb2_grpc
-import uuid
 
-from .providers import LLMProvider
-from news_model.processed_article import ProcessedArticle
-from common.logger import SingletonLoggerSafe
 from common.interface import NewsAnalyser
+from common.logger import SingletonLoggerSafe
+from news_model.message import ArticleMessage
+from analysers.providers import LLMProvider
 from trade_policy import TradePolicy
 
 # This module is responsible for analyzing trading view articles using DeepSeek's LLM.
 
+# timeout for push to AWS
+TIMEOUT_PUSH_TO_AWS = 600
 
 class ArticleAnalyser(NewsAnalyser):
     def __init__(self, provider: LLMProvider):
         self.provider = provider
-        self.ds_client = None
+        self.ds_client = OpenAI(api_key=self.provider.api_key, base_url=self.provider.base_url)
 
     def __enter__(self):
-        self.ds_client = OpenAI(api_key=self.provider.api_key, base_url=self.provider.base_url)
         return self
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.ds_client.close()
@@ -57,11 +57,11 @@ class ArticleAnalyser(NewsAnalyser):
             SingletonLoggerSafe.error(f"Failed to decode JSON struct.\n{match.group(1)}\nError: {e}")
             return None
 
-    def analyse(self, article: str) -> Tuple[Optional[dict], str]:
+    def analyse(self, article_content: str) -> Tuple[Optional[dict], str]:
         with open(self.provider.prompt_path, 'r', encoding='utf-8') as f:
             base_prompt = f.read()
 
-        prompt = f"{base_prompt}\n\n---\n\n{article}"
+        prompt = f"{base_prompt}\n\n---\n\n{article_content}"
         response = self._send_to_llm(prompt)
 
         structured_result = self._extract_structured_response(response)
@@ -76,19 +76,13 @@ class ArticleAnalyser(NewsAnalyser):
         return structured_result, response.strip()
 
 # Push processed article to processed articles queue
-async def push_to_processed_queue(queue: aio_pika.Queue, article: dict, message_id: str, message: str):
+async def push_to_processed_queue(queue: aio_pika.Queue, article: ArticleMessage):
     try:
-        await SingletonLoggerSafe.ainfo(f"Pushing processed article to queue {QUEUE_PROCESSED_ARTICLES}")
-        article_obj = ProcessedArticle(
-            uuid=message_id,
-            title=article['title'],
-            content=article['content'],
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            analysis_results=message)
+        await SingletonLoggerSafe.ainfo(f"Pushing processed article to queue {queue.name}")
         await queue.channel.default_exchange.publish(
-            aio_pika.Message(body=json.dumps(asdict(article_obj)).encode()),
+            aio_pika.Message(body=article.to_json().encode()),
             routing_key=queue.name)
-        await SingletonLoggerSafe.ainfo(f"Message pushed to queue {queue.name}: {message[:80]}...")
+        await SingletonLoggerSafe.ainfo(f"Message pushed to queue {queue.name}: {article.to_json()[:80]}...")
     except Exception as e:
         await SingletonLoggerSafe.aerror(f"Failed to push message to queue {queue.name}: {e}")
 
@@ -98,11 +92,10 @@ async def push_to_aws_gateway(analysis_push_gateway: pb2_grpc.AnalysisPushGatewa
     await SingletonLoggerSafe.ainfo(f"Pushing analysis results to AWS at {time.ctime(start)}")
     try:
         response = await asyncio.wait_for(
-            analysis_push_gateway.push(pb2.PushRequest(message=message)),
+            analysis_push_gateway.Push(pb2.PushRequest(message=message)),
             timeout=timeout
         )
-        await SingletonLoggerSafe.ainfo(f"PushResponse: status_code=%d, response_text=%s",
-                                response.status_code, response.response_text)
+        await SingletonLoggerSafe.ainfo(f"PushResponse: status_code={response.status_code}, response_text={response.response_text}")
     except asyncio.TimeoutError:
         await SingletonLoggerSafe.aerror(f"Push request timed out after {time.time() - start:.2f} seconds, skipping or retrying")
     except Exception as grpc_err:
@@ -121,37 +114,32 @@ async def consume_message(
         analyser, trade_policy, analysis_push_gateway,
         queue_processed_articles):
     async with message.process(ignore_processed=True):
-        message_id=None
         try:
             # Read message
-            message_id = str(uuid.uuid4())[:8]
-            await SingletonLoggerSafe.ainfo(f"[{message_id}] New message received.")
-            article = message.body.decode()
+            article = ArticleMessage.from_json(message.body.decode())
+            await SingletonLoggerSafe.ainfo(f"New message received. id={article.message_id}")
 
             # Analyze message
-            await SingletonLoggerSafe.ainfo(f"[{message_id}] Analyzing message content...")
-            struct_result, raw_text = await asyncio.to_thread(analyser.analyse, article)
+            await SingletonLoggerSafe.ainfo(f"Analyzing message content...")
+            article.response_struct, article.response_raw = await asyncio.to_thread(analyser.analyse, article)
 
             # Evaluate trade policy
-            analysis_message=None
-            if struct_result is not None:
-                analysis_message = json.dumps(struct_result, indent=2, ensure_ascii=False)
-                await evaluate_trade_policy(trade_policy, struct_result)
-                await push_to_processed_queue(queue_processed_articles, analysis_message)
+            if article.response_struct is not None:
+                await evaluate_trade_policy(trade_policy, article.response_struct)
+                await push_to_processed_queue(queue_processed_articles, article)
             else:
-                analysis_message = raw_text
+                await SingletonLoggerSafe.ainfo(f"[{article.message_id}] response message: {article.response_raw}")
             
             # Push to AWS
-            await SingletonLoggerSafe.ainfo(f"[{message_id}] response message: {analysis_message}")
             if analysis_push_gateway is not None:
-                await push_to_aws_gateway(analysis_push_gateway, TIMEOUT_PUSH_TO_AWS, analysis_message)
+                await push_to_aws_gateway(analysis_push_gateway, TIMEOUT_PUSH_TO_AWS, article.response_raw)
 
         except Exception as e:
-            await SingletonLoggerSafe.aerror(f"[{message_id}] Error processing message: {e}", exc_info=True)
+            await SingletonLoggerSafe.aerror(f"[{article.message_id}] Error processing message: {e}", exc_info=True)
             if not message.channel.is_closed:
                 await message.reject(requeue=False)
             else:
-                await SingletonLoggerSafe.ainfo(f"[{message_id}] Cannot reject message — channel already closed.")
+                await SingletonLoggerSafe.ainfo(f"[{article.message_id}] Cannot reject message — channel already closed.")
 
 async def graceful_shutdown(channel, analyser):
     await SingletonLoggerSafe.ainfo("Shutting down")
