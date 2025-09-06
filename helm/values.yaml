@@ -80,7 +80,7 @@ scrapers:
     enabled: true
     image:
       repository: "ivscraper"
-      tag: "be468b62ddbedb2b65545382a94bc98e73809272"
+      tag: "60c4ecdd0aaa4f1817e0053b978937a251c65464"
       pullPolicy: Always
     resources:
       limits:
@@ -99,7 +99,7 @@ scrapers:
     mqPass: "{{ .Values.rabbitmqPass }}"
     image:
       repository: "tvscraper"
-      tag: "be468b62ddbedb2b65545382a94bc98e73809272"
+      tag: "60c4ecdd0aaa4f1817e0053b978937a251c65464"
       pullPolicy: Always
     resources:
       limits:
@@ -116,7 +116,7 @@ analysers:
     enabled: true
     image:
       repository: "ivanalyser"
-      tag: "be468b62ddbedb2b65545382a94bc98e73809272"
+      tag: "60c4ecdd0aaa4f1817e0053b978937a251c65464"
       pullPolicy: Always
     resources:
       limits:
@@ -129,7 +129,7 @@ analysers:
     enabled: true
     image:
       repository: "tvanalyser"
-      tag: "be468b62ddbedb2b65545382a94bc98e73809272"
+      tag: "60c4ecdd0aaa4f1817e0053b978937a251c65464"
       pullPolicy: Always
     resources:
       limits:
@@ -144,7 +144,7 @@ coreServices:
     enabled: true
     image:
       repository: "mock_executor"
-      tag: be468b62ddbedb2b65545382a94bc98e73809272
+      tag: 60c4ecdd0aaa4f1817e0053b978937a251c65464
       pullPolicy: Always
     service:
       type: ClusterIP
@@ -160,7 +160,7 @@ coreServices:
     enabled: true
     image:
       repository: "stock_hub"
-      tag: be468b62ddbedb2b65545382a94bc98e73809272
+      tag: 60c4ecdd0aaa4f1817e0053b978937a251c65464
       pullPolicy: Always
     service:
       type: ClusterIP
@@ -176,7 +176,7 @@ coreServices:
     enabled: true
     image:
       repository: "aws_gateway"
-      tag: be468b62ddbedb2b65545382a94bc98e73809272
+      tag: 60c4ecdd0aaa4f1817e0053b978937a251c65464
       pullPolicy: Always
     service:
       type: ClusterIP
@@ -192,7 +192,7 @@ coreServices:
     enabled: true
     image:
       repository: "news_store"
-      tag: be468b62ddbedb2b65545382a94bc98e73809272
+      tag: 60c4ecdd0aaa4f1817e0053b978937a251c65464
       pullPolicy: Always
     resources:
       limits:
