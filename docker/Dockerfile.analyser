@@ -3,7 +3,8 @@ FROM python:3.9-slim
 # Install dependencies
 RUN pip install --no-cache-dir --upgrade p
 RUN pip install --no-cache-dir pika aio_pika requests beautifulsoup4 lxml openai cachetools selenium
-RUN pip install --no-cache-dir grpcio grpcio-tools langchain langchain-openai langchain-core langchain-community
+RUN pip install --no-cache-dir grpcio grpcio-tools
+RUN pip install --no-cache-dir langchain langchain-openai langchain-core langgraph langchain-community
 
 RUN useradd -m -u 1000 appuser
 

@@ -18,10 +18,10 @@ from news_model.message import ArticleMessage
 from analysers.providers import LLMProvider
 from trade_policy import TradePolicy
 
-from langchain_openai import ChatOpenAI, OpenAI
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
+from langgraph.prebuilt import create_react_agent
 
 # This module is responsible for analyzing trading view articles using DeepSeek's LLM.
 
@@ -40,8 +40,15 @@ class ArticleAnalyser(NewsAnalyser):
             tools=self.tools
         )
 
-        self.llm_tools = self.llm.bind_tools(self.tools)
-            
+        self.agent = create_react_agent(model=self.llm, tools=self.tools)
+        with open(self.provider.prompt_path, 'r', encoding='utf-8') as f:
+            base_prompt = f.read()
+        system_prompt = "You are a financial analyst. Based on the given news, identify the stock in the Hong Kong, U.S., A-share (China), or Australian markets that is most affected."
+        self.tpl = ChatPromptTemplate.from_messages([
+            SystemMessagePromptTemplate.from_template(system_prompt),
+            HumanMessagePromptTemplate.from_template(base_prompt),
+            HumanMessagePromptTemplate.from_template("{article_content}")
+        ])
     def __enter__(self):
         return self
     
@@ -67,11 +74,9 @@ class ArticleAnalyser(NewsAnalyser):
         return "Sample tool"
     
     def analyse(self, article_content: str) -> Tuple[Optional[dict], str]:
-        with open(self.provider.prompt_path, 'r', encoding='utf-8') as f:
-            base_prompt = f.read()
 
-        prompt = f"{base_prompt}\n\n---\n\n{article_content}"
-        response = self.llm_tools.invoke(prompt)
+        prompt = self.tpl.invoke({"article_content": article_content})
+        response = self.agent.invoke(prompt)
 
         structured_result = self._extract_structured_response(response.content)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

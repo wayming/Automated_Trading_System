@@ -21,3 +21,4 @@ docker/weaviate_data
 terraform/.terraform.lock.hcl
 terraform/.terraform.tfstate.lock.info
 terraform/.terraform/
+news_analyser/__pycache__/
