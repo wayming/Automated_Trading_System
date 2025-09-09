@@ -1,93 +1,23 @@
-import os
-import json
-import re
 import time
 import asyncio
 import aio_pika
-import signal
-from datetime           import datetime, timezone
+import json
+from datetime           import datetime
 from typing             import Optional, Tuple
-from dataclasses        import asdict
-from openai             import OpenAI
 from proto import analysis_push_gateway_pb2 as pb2
 from proto import analysis_push_gateway_pb2_grpc as pb2_grpc
 
 from common.interface import NewsAnalyser
 from common.logger import SingletonLoggerSafe
 from news_model.message import ArticleMessage
-from analysers.providers import LLMProvider
-from trade_policy import TradePolicy
-
-from langchain_openai import ChatOpenAI
-from langchain_core.tools import tool
-from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-from langgraph.prebuilt import create_react_agent
+from news_analyser.providers import LLMProvider
+from news_analyser.trade_policy import TradePolicy
+from news_analyser.agent import Agent
 
 # This module is responsible for analyzing trading view articles using DeepSeek's LLM.
 
 # timeout for push to AWS
 TIMEOUT_PUSH_TO_AWS = 600
-
-class ArticleAnalyser(NewsAnalyser):
-    def __init__(self, provider: LLMProvider):
-        self.provider = provider
-        self.tools = [self.sample_tool]
-        self.llm = ChatOpenAI(
-            model=provider.model_name,
-            temperature=0.0,
-            api_key=provider.api_key,
-            base_url=provider.base_url,
-            tools=self.tools
-        )
-
-        self.agent = create_react_agent(model=self.llm, tools=self.tools)
-        with open(self.provider.prompt_path, 'r', encoding='utf-8') as f:
-            base_prompt = f.read()
-        system_prompt = "You are a financial analyst. Based on the given news, identify the stock in the Hong Kong, U.S., A-share (China), or Australian markets that is most affected."
-        self.tpl = ChatPromptTemplate.from_messages([
-            SystemMessagePromptTemplate.from_template(system_prompt),
-            HumanMessagePromptTemplate.from_template(base_prompt),
-            HumanMessagePromptTemplate.from_template("{article_content}")
-        ])
-    def __enter__(self):
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.llm.close()
-
-    def _extract_structured_response(self, response_text):
-        pattern = r'^-{3,}\s*\n(.*?)\n-{3,}$'
-        match = re.search(pattern, response_text, re.DOTALL | re.MULTILINE)
-        if not match:
-            SingletonLoggerSafe.info(f"No structured resposne found from llm response:\n{response_text}")
-            return None
-        
-        try:
-            return json.loads(match.group(1))
-        except json.JSONDecodeError as e:
-            SingletonLoggerSafe.error(f"Failed to decode JSON struct.\n{match.group(1)}\nError: {e}")
-            return None
-
-    @tool
-    def sample_tool(self):
-        """Sample tool"""
-        return "Sample tool"
-    
-    def analyse(self, article_content: str) -> Tuple[Optional[dict], str]:
-
-        prompt = self.tpl.invoke({"article_content": article_content})
-        response = self.agent.invoke(prompt)
-
-        structured_result = self._extract_structured_response(response.content)
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_message = f"\n\n" + ">"*80 + "\n"
-        log_message += f"Timestamp: {timestamp}\n"
-        log_message += "Full Response:\n"
-        log_message += response.content
-        log_message += "\n" + ">"*80 + "\n\n"
-        SingletonLoggerSafe.info(log_message)
-
-        return structured_result, response.content
 
 # Push processed article to processed articles queue
 async def push_to_processed_queue(queue: aio_pika.Queue, article: ArticleMessage):
@@ -135,18 +65,22 @@ async def consume_message(
 
             # Analyze message
             await SingletonLoggerSafe.ainfo(f"Analyzing message content...")
-            article.response_struct, article.response_raw = await asyncio.to_thread(analyser.analyse, article)
-
+            article.response, article.error = await analyser.invoke(article.content)
+            
             # Evaluate trade policy
-            if article.response_struct is not None:
-                await evaluate_trade_policy(trade_policy, article.response_struct)
-                await push_to_processed_queue(queue_processed_articles, article)
+            aws_message = ""
+            if article.error:
+                aws_message = article.error
+                await SingletonLoggerSafe.ainfo(f"[{article.message_id}] error: {article.error}")
             else:
-                await SingletonLoggerSafe.ainfo(f"[{article.message_id}] response message: {article.response_raw}")
+                await evaluate_trade_policy(trade_policy, article.response)
+                await push_to_processed_queue(queue_processed_articles, article)
+                aws_message = json.dumps(article.response)
+            
             
             # Push to AWS
             if analysis_push_gateway is not None:
-                await push_to_aws_gateway(analysis_push_gateway, TIMEOUT_PUSH_TO_AWS, article.response_raw)
+                await push_to_aws_gateway(analysis_push_gateway, TIMEOUT_PUSH_TO_AWS, aws_message)
 
         except Exception as e:
             await SingletonLoggerSafe.aerror(f"[{article.message_id}] Error processing message: {e}", exc_info=True)
@@ -155,10 +89,8 @@ async def consume_message(
             else:
                 await SingletonLoggerSafe.ainfo(f"[{article.message_id}] Cannot reject message — channel already closed.")
 
-async def graceful_shutdown(channel, analyser):
+async def graceful_shutdown(channel):
     await SingletonLoggerSafe.ainfo("Shutting down")
     if channel is not None:
         await channel.close()
-    if analyser is not None:
-        await asyncio.to_thread(analyser.__exit__)
     await SingletonLoggerSafe.ainfo("Shutdown complete")

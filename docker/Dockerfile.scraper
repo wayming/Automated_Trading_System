@@ -60,6 +60,7 @@ RUN pip install --no-cache-dir \
 RUN useradd -m -u 1000 appuser
 
 # Copy the Python script into the container
+COPY common /app/common
 COPY news_scraper /app/news_scraper
 COPY news_model /app/news_model
 COPY proto /app/proto

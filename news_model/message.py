@@ -6,8 +6,8 @@ import json
 class ArticleMessage:
     title: str = ""
     content: str = ""
-    response_struct: dict = None
-    response_raw: str = ""
+    response: dict = None
+    error: str = ""
 
     # private field
     _message_id: str = str(uuid.uuid4())

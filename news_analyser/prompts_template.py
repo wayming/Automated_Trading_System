@@ -2,18 +2,26 @@ import json
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain.prompts import ChatPromptTemplate
 
-IDENTIFY_PROMPT = ChatPromptTemplate.from_messages([
+test_prompt = ChatPromptTemplate.from_messages([
     SystemMessage(content="""
+www
+"""),
+    HumanMessage(content="xxx: {news_text}")
+])
+
+
+IDENTIFY_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """
 你是一个股票分析师,任务是从新闻文本中识别主要受影响的股票代码(单一股票). 受影响的股票仅限于港股,美股,a股或者澳股市场.
 输出JSON格式,符合以下模式：
 {stock_identification_output_schema}
 只返回一个股票代码。如果新闻未明确提及股票,使用上下文推断.如新闻没有特别指向性的股票,则返回空字符串
 """),
-    HumanMessage(content="新闻: {news_text}")
+    ("human", "新闻: {news_text}")
 ])
 
 PREDICTION_PROMPT = ChatPromptTemplate.from_messages([
-    SystemMessage(content="""
+    ("system", """
 你是一个股票预测专家。基于以下信息,预测股票在未来的涨跌趋势,输出JSON格式,符合以下模式：   
 {stock_prediction_output_schema}
 核心指令：
@@ -48,9 +56,9 @@ PREDICTION_PROMPT = ChatPromptTemplate.from_messages([
   驱动因素必须可验证（如新闻中提到的订单金额、政策条款、技术突破细节）。
   如果找不到相关股票，不返回结构化数据。
 """),
-    HumanMessage(content="""
+    ("human", """
 新闻: {news_text}
-股票: {affected_stock}
+股票: {stock_symbol}
 短期股价: {prices}
 技术指标: {indicators}""")
 ])
