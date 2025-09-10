@@ -2,7 +2,7 @@ import asyncio
 import aio_pika
 import json
 from common.logger import SingletonLoggerSafe
-from news_model.message import ArticleMessage
+from news_model.message import ArticlePayload
 
 async def article_publisher(mq_channel: aio_pika.channel.Channel, mq_name: str, in_queue: asyncio.Queue, stop_event:asyncio.Event):
     await mq_channel.declare_queue(mq_name, durable=True)

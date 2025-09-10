@@ -8,17 +8,22 @@ from news_model.processed_article import ProcessedArticle
 QUEUE_PROCESSED_ARTICLES = "processed_articles"
 
 class NewsIngestor:
-    def __init__(self, mq_host, queue_name, wv_config):
-        self.consumer = RabbitMQConsumer(mq_host, queue_name)
-        self.weaviate = WeaviateClient(wv_config)
+    def __init__(self, mq_config: RabbitMQConfig, wv_config: WeaviateConfig):
+        self.mq_config = mq_config
+        self.wv_config = wv_config
 
     def start(self):
-        print("🟢 NewsIngestor started. Waiting for messages...")
-        for message in self.consumer.consume():
-            self.process_message(message)
+        SingletonLoggerSafe.info("🟢 NewsIngestor started. Waiting for messages...")
+        try:
+            with RabbitMQConsumer(self.mq_config) as consumer:
+                with WeaviateClient(self.wv_config) as weaviate:
+                    consumer.with_handler(self.weaviate.store_news)
+                    consumer.consume()
+        except Exception as e:
+            SingletonLoggerSafe.error(f"Failed to start NewsIngestor: {e}")
 
     def process_message(self, message):
-        print(f"📩 Received message: {message}")
+        SingletonLoggerSafe.info(f"📩 Received message: {message}")
         try:
             processed = self.parse_news(message)
             self.weaviate.store_news(processed)
@@ -29,15 +34,17 @@ class NewsIngestor:
     def parse_news(self, raw_message):
         data = json.loads(raw_message)
         article = ProcessedArticle(**data)
-        return article.__dict__ 
-def main():
-    weaviate_config = {
-        "host": "weaviate",
-        "http_port": os.getenv("WEAVIATE_HTTP_PORT", "8080"),
-        "grpc_port": os.getenv("WEAVIATE_GRPC_PORT", "50051"),
-        "class_name": "ProcessedArticle",
-    }
+        return article.__dict__
 
+def main():
+    SingletonLoggerSafe("output/news_ingestor.log")
+    weaviate_config = WeaviateConfig(
+        host=os.getenv("WEAVIATE_HOST", "weaviate"),
+        http_port=os.getenv("WEAVIATE_HTTP_PORT", "8080"),
+        grpc_port=os.getenv("WEAVIATE_GRPC_PORT", "50051"),
+        class_name="ProcessedArticle",
+    )
+    in_queue = None
     ingestor = NewsIngestor("rabbitmq", QUEUE_PROCESSED_ARTICLES, weaviate_config)
     ingestor.start()
 

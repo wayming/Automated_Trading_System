@@ -1,20 +1,16 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import uuid
 import json
+from datetime import datetime
 
 @dataclass
-class ArticleMessage:
+class ArticlePayload:
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    time: str = field(default_factory=lambda: datetime.now().isoformat())
     title: str = ""
     content: str = ""
-    response: dict = None
+    analysis: dict = None
     error: str = ""
-
-    # private field
-    _message_id: str = str(uuid.uuid4())
-
-    @property
-    def message_id(self):
-        return self._message_id
     
     def to_json(self):
         return json.dumps(self.__dict__)

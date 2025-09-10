@@ -21,6 +21,7 @@ RUN useradd -m -u 1000 appuser
 # Copy the Python script into the container
 COPY news_store /app/news_store
 COPY news_model /app/news_model
+COPY common /app/common
 RUN chown -R appuser:appuser /app
 
 # Switch to the user

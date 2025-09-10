@@ -9,7 +9,7 @@ from proto import analysis_push_gateway_pb2_grpc as pb2_grpc
 
 from common.interface import NewsAnalyser
 from common.logger import SingletonLoggerSafe
-from news_model.message import ArticleMessage
+from news_model.message import ArticlePayload
 from news_analyser.providers import LLMProvider
 from news_analyser.trade_policy import TradePolicy
 from news_analyser.agent import Agent
@@ -20,7 +20,7 @@ from news_analyser.agent import Agent
 TIMEOUT_PUSH_TO_AWS = 600
 
 # Push processed article to processed articles queue
-async def push_to_processed_queue(queue: aio_pika.Queue, article: ArticleMessage):
+async def push_to_processed_queue(queue: aio_pika.Queue, article: ArticlePayload):
     try:
         await SingletonLoggerSafe.ainfo(f"Pushing processed article to queue {queue.name}")
         await queue.channel.default_exchange.publish(
@@ -60,22 +60,22 @@ async def consume_message(
     async with message.process(ignore_processed=True):
         try:
             # Read message
-            article = ArticleMessage.from_json(message.body.decode())
-            await SingletonLoggerSafe.ainfo(f"New message received. id={article.message_id}")
+            article = ArticlePayload.from_json(message.body.decode())
+            await SingletonLoggerSafe.ainfo(f"New message received. id={article.id}")
 
             # Analyze message
             await SingletonLoggerSafe.ainfo(f"Analyzing message content...")
-            article.response, article.error = await analyser.invoke(article.content)
+            article.analysis, article.error = await analyser.invoke(article.content)
             
             # Evaluate trade policy
             aws_message = ""
             if article.error:
                 aws_message = article.error
-                await SingletonLoggerSafe.ainfo(f"[{article.message_id}] error: {article.error}")
+                await SingletonLoggerSafe.ainfo(f"[{article.id}] error: {article.error}")
             else:
-                await evaluate_trade_policy(trade_policy, article.response)
+                await evaluate_trade_policy(trade_policy, article.analysis)
                 await push_to_processed_queue(queue_processed_articles, article)
-                aws_message = json.dumps(article.response)
+                aws_message = json.dumps(article.analysis)
             
             
             # Push to AWS
@@ -83,11 +83,11 @@ async def consume_message(
                 await push_to_aws_gateway(analysis_push_gateway, TIMEOUT_PUSH_TO_AWS, aws_message)
 
         except Exception as e:
-            await SingletonLoggerSafe.aerror(f"[{article.message_id}] Error processing message: {e}", exc_info=True)
+            await SingletonLoggerSafe.aerror(f"[{article.id}] Error processing message: {e}", exc_info=True)
             if not message.channel.is_closed:
                 await message.reject(requeue=False)
             else:
-                await SingletonLoggerSafe.ainfo(f"[{article.message_id}] Cannot reject message — channel already closed.")
+                await SingletonLoggerSafe.ainfo(f"[{article.id}] Cannot reject message — channel already closed.")
 
 async def graceful_shutdown(channel):
     await SingletonLoggerSafe.ainfo("Shutting down")
