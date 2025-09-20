@@ -2,8 +2,7 @@ import weaviate
 from weaviate.connect import ConnectionParams, ProtocolParams
 from weaviate.collections.classes.config import DataType
 from typing import TypedDict
-from news_model.processed_article import ProcessedArticle
-from news_model.article_message import ArticlePayload
+from news_model.message import ArticlePayload
 
 class WeaviateConfig(TypedDict):
     host: str

@@ -1,0 +1,13 @@
+services:
+  unittest:
+    build:
+      context: .
+      dockerfile: Dockerfile.python.test
+    container_name: trade_test
+    volumes:
+      - ..:/app
+    working_dir: /app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PIP_NO_CACHE_DIR=1
+    command: pytest -v common/tests/unit

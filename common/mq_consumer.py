@@ -14,12 +14,12 @@ class RabbitMQConsumer:
         self.connection = None
         self.channel = None
         self.queue = None
-        self.consumer = None
         self.handlers: List[Callable[[str], None]] = []
         self.stop_event = asyncio.Event()
 
     async def __aenter__(self):
         await self.connect()
+        self._register_sig_handler()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -45,11 +45,11 @@ class RabbitMQConsumer:
                 self.stop_event.set()
             except Exception as e:
                 SingletonLoggerSafe.error(f"Failed to set stop event: {e}")
-        if self.consumer:
+        if self.queue:
             try:
-                await self.consumer.cancel()
+                await self.queue.cancel()
             except Exception as e:
-                SingletonLoggerSafe.error(f"Failed to cancel consumer: {e}")
+                SingletonLoggerSafe.error(f"Failed to cancel queue: {e}")
         if self.channel:
             try:
                 await self.channel.close()
@@ -72,20 +72,17 @@ class RabbitMQConsumer:
         if self.handlers is None or len(self.handlers) == 0:
             raise Exception("No handlers registered")
         
-        try:
-            self.consumer = await self.queue.consume(self._handler_wrapper())
-        except Exception as e:
-            SingletonLoggerSafe.error(f"Failed to consume: {e}")
-            raise
-            
-        await self.stop_event.wait()
-
-    def _handler_wrapper(self):
-        def wrapper(raw_message: aio_pika.IncomingMessage):
-            message = raw_message.body.decode("utf-8")
-            for handler in self.handlers:
-                try:
-                    handler(message)
-                except Exception as e:
-                    SingletonLoggerSafe.error(f"Handler failed: {e}")
-        return wrapper
+        async for message in await self.queue.iterator():
+            async with message.process():
+                if self.stop_event.is_set():
+                    break
+                for handler in self.handlers:
+                    try:
+                        handler(message.body.decode("utf-8"))
+                    except Exception as e:
+                        SingletonLoggerSafe.error(f"Handler failed: {e}")
+    
+    def _register_sig_handler(self):
+        loop = asyncio.get_running_loop()
+        loop.add_signal_handler(signal.SIGINT, self.stop_event.set)
+        loop.add_signal_handler(signal.SIGTERM, self.stop_event.set)
