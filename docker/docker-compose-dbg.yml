@@ -15,7 +15,7 @@ services:
       timeout: 3s
       retries: 10
     networks:
-      - scraper-network
+      - trader-network
 
   chrome-node:
     image: selenium/node-chrome:4.35.0
@@ -33,7 +33,7 @@ services:
     volumes:
       - /dev/shm:/dev/shm
     networks:
-      - scraper-network
+      - trader-network
 
   rabbitmq:
     build:
@@ -50,17 +50,41 @@ services:
       - ../rabbitmq/rabbitmq_data:/var/lib/rabbitmq
       - ../rabbitmq/rabbitmq_logs:/var/log/rabbitmq
     environment:
-      - RABBITMQ_DEFAULT_USER=admin
-      - RABBITMQ_DEFAULT_PASS=password
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
     networks:
-      - scraper-network
+      - trader-network
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_running"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-
+  weaviate:
+    image: cr.weaviate.io/semitechnologies/weaviate:1.30.0
+    command: --host 0.0.0.0 --port 8080 --scheme http
+    ports:
+      - "50001:8080" # REST API
+      - "50002:50051" # gRPC API
+    volumes:
+      - ../weaviate:/var/lib/weaviate  # Mount volume
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      ENABLE_MODULES: ''
+      ENABLE_GRPC_SERVER: 'true'
+      CLUSTER_HOSTNAME: 'node1'
+    networks:
+      - trader-network
+    restart: always  # Restart container if it crashes
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/v1/.well-known/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      
   tvscraper:
     build:
       context: ../  # Set build context to project root
@@ -75,10 +99,12 @@ services:
       - TRADE_VIEW_USER=${TRADE_VIEW_USER}
       - TRADE_VIEW_PASS=${TRADE_VIEW_PASS}
       - SELENIUM_HUB_URL=http://selenium-hub:4444/wd/hub
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASS=${RABBITMQ_PASS}
     ports:
       - "9222:9222"
     networks:
-      - scraper-network
+      - trader-network
     restart: always  # Restart container if it crashes
     command: python -m news_scraper.scraper_trading_view
     depends_on:
@@ -99,8 +125,10 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix # Show chrome browser
     environment:
       - DISPLAY=$DISPLAY  # Show chrome browser
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASS=${RABBITMQ_PASS}
     networks:
-      - scraper-network
+      - trader-network
     restart: always  # Restart container if it crashes
     command: python -m news_scraper.scraper_investing
     depends_on:
@@ -114,6 +142,8 @@ services:
     environment:
       - AWS_GATEWAY_ENDPOINT=aws_gateway:50053
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASS=${RABBITMQ_PASS}
     volumes:
       - ../output:/app/output  # Mount the current directory to /app in the container
     command: python -m news_analyser.deepseek_analyser
@@ -125,7 +155,7 @@ services:
       aws_gateway:
         condition: service_started
     networks:
-      - scraper-network
+      - trader-network
 
   mock_executor:
     build:
@@ -139,7 +169,7 @@ services:
       stock_hub:
         condition: service_started
     networks:
-      - scraper-network
+      - trader-network
 
   stock_hub:
     build:
@@ -150,7 +180,7 @@ services:
     volumes:
       - ../output:/app/output  # Mount volume
     networks:
-      - scraper-network
+      - trader-network
 
   aws_gateway:
     build:
@@ -163,7 +193,7 @@ services:
     volumes:
       - ../output:/app/output  # Mount volume
     networks:
-      - scraper-network
+      - trader-network
 
   prometheus:
     image: prom/prometheus:latest
@@ -171,26 +201,50 @@ services:
     volumes:
       - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
-      - "9090:9090"
+      - "50054:9090"
     networks:
-      - scraper-network
+      - trader-network
     restart: unless-stopped
 
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
     ports:
-      - "3001:3000"
+      - "50055:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
     networks:
-      - scraper-network
+      - trader-network
     depends_on:
       prometheus:
         condition: service_started
     restart: unless-stopped
 
+
+  news_ingestor:
+    build:
+      context: ../  # Set build context to project root
+      dockerfile: docker/Dockerfile.news.ingestor
+    ports:
+      - "50056:50056"
+    volumes:
+      - ../output:/app/output  # Mount volume
+    environment:
+      - WEAVIATE_HOST=weaviate
+      - WEAVIATE_HTTP_PORT=8080
+      - WEAVIATE_GRPC_PORT=50051
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASS=${RABBITMQ_PASS}
+    depends_on:
+      weaviate:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - trader-network
+
 networks:
-  scraper-network:
+  trader-network:
     driver: bridge

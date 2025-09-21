@@ -1,0 +1,1 @@
+curl -X DELETE http://localhost:50001/v1/schema/Articles

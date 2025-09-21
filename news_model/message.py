@@ -1,12 +1,11 @@
 from dataclasses import dataclass, field
 import uuid
 import json
-from datetime import datetime
-
+from datetime import datetime, timezone
 @dataclass
 class ArticlePayload:
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    time: str = field(default_factory=lambda: datetime.now().isoformat())
+    article_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    time: str = field(default_factory=lambda: datetime.now(timezone.utc).replace(microsecond=0).isoformat())
     title: str = ""
     content: str = ""
     analysis: dict = None

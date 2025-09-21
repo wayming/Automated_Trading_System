@@ -61,7 +61,7 @@ async def consume_message(
         try:
             # Read message
             article = ArticlePayload.from_json(message.body.decode())
-            await SingletonLoggerSafe.ainfo(f"New message received. id={article.id}")
+            await SingletonLoggerSafe.ainfo(f"New message received. article_id={article.article_id}")
 
             # Analyze message
             await SingletonLoggerSafe.ainfo(f"Analyzing message content...")
@@ -71,7 +71,7 @@ async def consume_message(
             aws_message = ""
             if article.error:
                 aws_message = article.error
-                await SingletonLoggerSafe.ainfo(f"[{article.id}] error: {article.error}")
+                await SingletonLoggerSafe.ainfo(f"[{article.article_id}] error: {article.error}")
             else:
                 await evaluate_trade_policy(trade_policy, article.analysis)
                 await push_to_processed_queue(queue_processed_articles, article)
@@ -83,11 +83,11 @@ async def consume_message(
                 await push_to_aws_gateway(analysis_push_gateway, TIMEOUT_PUSH_TO_AWS, aws_message)
 
         except Exception as e:
-            await SingletonLoggerSafe.aerror(f"[{article.id}] Error processing message: {e}", exc_info=True)
+            await SingletonLoggerSafe.aerror(f"[{article.article_id}] Error processing message: {e}", exc_info=True)
             if not message.channel.is_closed:
                 await message.reject(requeue=False)
             else:
-                await SingletonLoggerSafe.ainfo(f"[{article.id}] Cannot reject message — channel already closed.")
+                await SingletonLoggerSafe.ainfo(f"[{article.article_id}] Cannot reject message — channel already closed.")
 
 async def graceful_shutdown(channel):
     await SingletonLoggerSafe.ainfo("Shutting down")
