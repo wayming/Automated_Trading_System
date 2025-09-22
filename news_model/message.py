@@ -8,7 +8,7 @@ class ArticlePayload:
     time: str = field(default_factory=lambda: datetime.now(timezone.utc).replace(microsecond=0).isoformat())
     title: str = ""
     content: str = ""
-    analysis: dict = None
+    analysis: str = ""
     error: str = ""
     
     def to_json(self):

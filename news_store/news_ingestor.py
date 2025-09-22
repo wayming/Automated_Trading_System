@@ -1,6 +1,6 @@
 import os
 from common.mq_consumer import RabbitMQConsumer
-from .weaviate_writer import WeaviateClient, WeaviateConfig
+from .weaviate_writer import WeaviateWriter, WeaviateConfig
 from contextlib import AsyncExitStack
 import asyncio
 from common.logger import SingletonLoggerSafe
@@ -29,7 +29,7 @@ async def main():
     SingletonLoggerSafe.info(f"Connecting to RabbitMQ at {mq_config['host']}:{mq_config['queue_name']}")
 
     async with AsyncExitStack() as stack:
-        wv_client = await stack.enter_async_context(WeaviateClient(weaviate_config))
+        wv_client = await stack.enter_async_context(WeaviateWriter(weaviate_config))
         mq_consumer = await stack.enter_async_context(RabbitMQConsumer(mq_config))
 
         mq_consumer.with_handler(wv_client.store_article)

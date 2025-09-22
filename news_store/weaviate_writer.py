@@ -4,6 +4,7 @@ from weaviate.collections.classes.config import DataType
 from typing import TypedDict
 from news_model.message import ArticlePayload
 from common.logger import SingletonLoggerSafe
+from dataclasses import asdict
 
 class WeaviateConfig(TypedDict):
     host: str
@@ -11,9 +12,18 @@ class WeaviateConfig(TypedDict):
     grpc_port: str
     class_name: str
 
-class WeaviateClient:
+
+class WeaviateWriter:
     def __init__(self, config: WeaviateConfig):
         self.config = config
+        self.properties = [
+            {"name": "article_id", "data_type": DataType.TEXT},
+            {"name": "time", "data_type": DataType.DATE},
+            {"name": "title", "data_type": DataType.TEXT},
+            {"name": "content", "data_type": DataType.TEXT},
+            {"name": "error", "data_type": DataType.TEXT}
+        ]
+        self.property_keys = {p["name"] for p in self.properties}
     
     async def __aenter__(self):
         try:
@@ -51,32 +61,7 @@ class WeaviateClient:
             await SingletonLoggerSafe.ainfo(f"Creating class '{class_name}'")
             await self.client.collections.create(
                     name=class_name,
-                    properties = [
-                    {"name": "article_id", "data_type": DataType.TEXT},
-                    {"name": "time", "data_type": DataType.DATE},
-                    {"name": "title", "data_type": DataType.TEXT},
-                    {"name": "content", "data_type": DataType.TEXT},
-                    {"name": "error", "data_type": DataType.TEXT},
-                    {"name": "analysis", "data_type": DataType.OBJECT, "nested_properties": [
-                        {"name": "short_term", "data_type": DataType.OBJECT, "nested_properties": [
-                            {"name": "score", "data_type": DataType.INT},
-                            {"name": "driver", "data_type": DataType.TEXT},
-                            {"name": "risk", "data_type": DataType.TEXT},
-                        ]},
-                        {"name": "mid_term", "data_type": DataType.OBJECT, "nested_properties": [
-                            {"name": "score", "data_type": DataType.INT},
-                            {"name": "driver", "data_type": DataType.TEXT},
-                            {"name": "risk", "data_type": DataType.TEXT},
-                        ]},
-                        {"name": "long_term", "data_type": DataType.OBJECT, "nested_properties": [
-                            {"name": "score", "data_type": DataType.INT},
-                            {"name": "driver", "data_type": DataType.TEXT},
-                            {"name": "risk", "data_type": DataType.TEXT},
-                        ]},
-                        {"name": "alerts", "data_type": DataType.TEXT},
-                        {"name": "conclusion", "data_type": DataType.TEXT},
-                    ]},
-                ],
+                    properties = self.properties,
                 description="Processed business data stored via message queue"
             )
             await SingletonLoggerSafe.ainfo(f"Class '{class_name}' created successfully.")
@@ -87,7 +72,10 @@ class WeaviateClient:
         try:
             article = ArticlePayload.from_json(article_text)
             collection = self.client.collections.get(self.config["class_name"])
-            await collection.data.insert(article.__dict__)
-            await SingletonLoggerSafe.ainfo(f"Article stored successfully: {article.__dict__}")
+            await SingletonLoggerSafe.ainfo(f"Storing article: {article}")
+            await SingletonLoggerSafe.ainfo(f"Property keys: {self.property_keys}")
+            filtered = {k: v for k, v in asdict(article).items() if k in self.property_keys}
+            await collection.data.insert(filtered)
+            await SingletonLoggerSafe.ainfo(f"Article stored successfully: {filtered}")
         except Exception as e:
             await SingletonLoggerSafe.aerror(f"Failed to store article: {e}")

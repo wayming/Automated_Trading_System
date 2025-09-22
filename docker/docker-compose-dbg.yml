@@ -84,7 +84,48 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-      
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "50003:5432"
+    volumes:
+      - ../postgres/data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - trader-network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    restart: always
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=wayming.z@gmail.com
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD}
+      - PGADMIN_LISTEN_ADDRESS=0.0.0.0
+      - PGADMIN_DEFAULT_SERVER=postgres
+      - PGADMIN_DEFAULT_SERVER_GROUP=Servers
+      - PGADMIN_DATA_DIR=/home/
+    ports:
+      - "50004:80"   # 浏览器访问 http://localhost:50004
+    volumes:
+      - ../pgadmin:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - trader-network
+
   tvscraper:
     build:
       context: ../  # Set build context to project root
@@ -237,11 +278,18 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_USER=${RABBITMQ_USER}
       - RABBITMQ_PASS=${RABBITMQ_PASS}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     depends_on:
       weaviate:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+      pgadmin:
+        condition: service_started 
     networks:
       - trader-network
 

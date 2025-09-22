@@ -65,18 +65,18 @@ async def consume_message(
 
             # Analyze message
             await SingletonLoggerSafe.ainfo(f"Analyzing message content...")
-            article.analysis, article.error = await analyser.invoke(article.content)
-            
+            analysis_dict, article.error = await analyser.invoke(article.content)
+            article.analysis = json.dumps(analysis_dict)
+
             # Evaluate trade policy
             aws_message = ""
             if article.error:
                 aws_message = article.error
                 await SingletonLoggerSafe.ainfo(f"[{article.article_id}] error: {article.error}")
             else:
-                await evaluate_trade_policy(trade_policy, article.analysis)
+                await evaluate_trade_policy(trade_policy, analysis_dict)
                 await push_to_processed_queue(queue_processed_articles, article)
-                aws_message = json.dumps(article.analysis)
-            
+                aws_message = article.analysis
             
             # Push to AWS
             if analysis_push_gateway is not None:
