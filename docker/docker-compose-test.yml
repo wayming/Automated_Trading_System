@@ -10,4 +10,4 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - PIP_NO_CACHE_DIR=1
-    command: pytest -v common/tests
+    command: pytest -v

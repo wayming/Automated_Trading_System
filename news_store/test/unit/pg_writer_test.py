@@ -9,10 +9,6 @@ from common.logger import SingletonLoggerSafe
 # pytest fixtures
 # -------------------------
 @pytest.fixture
-def logger():
-    return SingletonLoggerSafe.init("pg_writer_test.log")
-
-@pytest.fixture
 def article_json_str():
     # Sample article JSON string
     return """
@@ -50,6 +46,8 @@ def writer(mock_config):
     w.conn = mock.AsyncMock()
     return w
 
+SingletonLoggerSafe("output/tests/pg_writer_test.log")
+
 # -------------------------
 # Tests
 # -------------------------
@@ -60,7 +58,7 @@ async def test_store_article(writer, article_json_str, article_obj):
         await writer.store_article(article_json_str)
 
     # Check that conn.execute was called
-    assert writer.conn.execute.called, "Expected conn.execute to be called"
+    writer.conn.execute.assert_awaited(), "Expected conn.execute to be called"
 
     # Verify SQL parameters include article data
     sql_call_args = writer.conn.execute.call_args[0][0]
@@ -75,7 +73,7 @@ async def test___ensure_table(writer, mock_config):
     await writer._ensure_table()
 
     # Verify that conn.execute was called to create the table
-    assert writer.conn.execute.called, "Expected execute to be called to create table"
+    writer.conn.execute.assert_awaited(), "Expected execute to be called to create table"
 
     # Check that SQL statement contains table name and all fields
     sql_call_args = writer.conn.execute.call_args[0][0]
