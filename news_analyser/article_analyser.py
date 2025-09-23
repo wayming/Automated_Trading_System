@@ -14,7 +14,7 @@ from news_analyser.providers import LLMProvider
 from news_analyser.trade_policy import TradePolicy
 from news_analyser.agent import Agent
 
-# This module is responsible for analyzing trading view articles using DeepSeek's LLM.
+# Common functions for different LLM analysers
 
 # timeout for push to AWS
 TIMEOUT_PUSH_TO_AWS = 600
@@ -66,7 +66,7 @@ async def consume_message(
             # Analyze message
             await SingletonLoggerSafe.ainfo(f"Analyzing message content...")
             analysis_dict, article.error = await analyser.invoke(article.content)
-            article.analysis = json.dumps(analysis_dict)
+            article.analysis = json.dumps(analysis_dict, ensure_ascii=False)
 
             # Evaluate trade policy
             aws_message = ""

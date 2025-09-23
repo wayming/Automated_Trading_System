@@ -11,7 +11,7 @@ from common.mq_consumer import RabbitMQConfig
 QUEUE_PROCESSED_ARTICLES = "processed_articles"
 
 async def main():
-    SingletonLoggerSafe("output/news_ingestor.log")
+    logger = SingletonLoggerSafe("output/news_ingestor.log").component("news_ingestor")
 
     weaviate_config = WeaviateConfig(
         host=os.getenv("WEAVIATE_HOST", "weaviate"),
@@ -19,7 +19,7 @@ async def main():
         grpc_port=os.getenv("WEAVIATE_GRPC_PORT", "50051"),
         class_name="articles",
     )
-    SingletonLoggerSafe.info(f"Connecting to Weaviate at {weaviate_config['host']}:{weaviate_config['http_port']}")
+    logger.info(f"Connecting to Weaviate at {weaviate_config['host']}:{weaviate_config['http_port']}")
 
     mq_config = RabbitMQConfig(
         host=os.getenv("RABBITMQ_HOST", "rabbitmq"),
@@ -27,7 +27,7 @@ async def main():
         password=os.getenv("RABBITMQ_PASS", "password"),
         queue_name=QUEUE_PROCESSED_ARTICLES,
     )
-    SingletonLoggerSafe.info(f"Connecting to RabbitMQ at {mq_config['host']}:{mq_config['queue_name']}")
+    logger.info(f"Connecting to RabbitMQ at {mq_config['host']}:{mq_config['queue_name']}")
 
     pg_config = PostgresConfig(
         host=os.getenv("PG_HOST", "postgres"),
@@ -37,7 +37,7 @@ async def main():
         database=os.getenv("POSTGRES_DB", "postgres"),
         table_name=os.getenv("PG_TABLE", "articles"),
     )
-    SingletonLoggerSafe.info(f"Connecting to Postgres at {pg_config['host']}:{pg_config['port']}/{pg_config['database']}")
+    logger.info(f"Connecting to Postgres at {pg_config['host']}:{pg_config['port']}/{pg_config['database']}")
 
     async with AsyncExitStack() as stack:
         wv_client = await stack.enter_async_context(WeaviateWriter(weaviate_config))

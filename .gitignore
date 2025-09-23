@@ -25,3 +25,4 @@ news_analyser/__pycache__/
 *.pyc
 weaviate/
 pgadmin/
+news_analyser/mcp.py

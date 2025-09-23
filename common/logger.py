@@ -7,6 +7,25 @@ import sys
 class SingletonLoggerSafe:
     _instance = None
     _create_lock = threading.Lock()
+    class _ComponentLoggerAdapter(logging.LoggerAdapter):
+        """LoggerAdapter wrapper that supports async methods ainfo / aerror"""
+        def __init__(self, logger, component_name: str):
+            super().__init__(logger, {"component": component_name})
+            self._component_name = component_name
+
+        def info(self, msg, *args, **kwargs):
+            msg = f"[{self._component_name}] {msg}"
+            super().info(msg, *args, **kwargs)
+
+        def error(self, msg, *args, **kwargs):
+            msg = f"[{self._component_name}] {msg}"
+            super().error(msg, *args, **kwargs)
+
+        async def ainfo(self, msg: str):
+            await asyncio.to_thread(self.info, msg)
+
+        async def aerror(self, msg: str):
+            await asyncio.to_thread(self.error, msg)
 
     def __new__(cls, file_path: str):
         if cls._instance:
@@ -17,6 +36,10 @@ class SingletonLoggerSafe:
                 return cls._instance
 
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            logging.basicConfig(
+                level=logging.INFO,
+                format="%(asctime)s [%(levelname)s] %(message)s"
+            )
             logger = logging.getLogger("SingletonLoggerSafe")
             for handler in logger.handlers[:]:
                 handler.close()
@@ -34,7 +57,7 @@ class SingletonLoggerSafe:
             ch = logging.StreamHandler(sys.stdout)
             ch.setLevel(logging.INFO)
             ch_formatter = logging.Formatter(
-                "%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+                "%(asctime)s [%(levelname)s] %(message)s")
             ch.setFormatter(ch_formatter)
             logger.addHandler(ch)
 
@@ -42,7 +65,7 @@ class SingletonLoggerSafe:
             fh = logging.FileHandler(file_path)
             fh.setLevel(logging.INFO)
             fh_formatter = logging.Formatter(
-                "%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+                "%(asctime)s [%(levelname)s] %(message)s")
             fh.setFormatter(fh_formatter)
             logger.addHandler(fh)
             
@@ -77,4 +100,10 @@ class SingletonLoggerSafe:
     async def aerror(cls, msg: str):
         await asyncio.to_thread(cls.error, msg)
         
-        
+    @classmethod
+    def component(cls, name: str):
+        if not cls._instance:
+            raise ValueError("Logger not initialized")
+        return cls._ComponentLoggerAdapter(cls._instance, name)
+
+

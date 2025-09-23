@@ -4,7 +4,7 @@ from dataclasses import asdict
 from news_model.message import ArticlePayload
 from news_store.pg_writer import PostgresWriter, PostgresConfig
 from common.logger import SingletonLoggerSafe
-
+from datetime import datetime
 # -------------------------
 # pytest fixtures
 # -------------------------
@@ -64,8 +64,11 @@ async def test_store_article(writer, article_json_str, article_obj):
     sql_call_args = writer.conn.execute.call_args[0][0]
     values_call_args = writer.conn.execute.call_args[0][1:]
     for key, val in asdict(article_obj).items():
-        if key in writer.property_keys:
-            assert str(val) in str(values_call_args) or val is None
+        if key in writer.table_defn:
+            if writer.table_defn[key]['type'] == "timestamp":
+                assert datetime.fromisoformat(val) in values_call_args or val is None
+            else:
+                assert str(val) in str(values_call_args) or val is None
 
 @pytest.mark.asyncio
 async def test___ensure_table(writer, mock_config):

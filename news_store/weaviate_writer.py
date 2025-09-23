@@ -24,6 +24,7 @@ class WeaviateWriter:
             {"name": "error", "data_type": DataType.TEXT}
         ]
         self.property_keys = {p["name"] for p in self.properties}
+        self.logger = SingletonLoggerSafe.component("WeaviateWriter")
     
     async def __aenter__(self):
         try:
@@ -38,9 +39,9 @@ class WeaviateWriter:
                 )
             )
             await self.client.connect()
-            await SingletonLoggerSafe.ainfo(f"Connected to Weaviate at {self.config['host']}:{self.config['http_port']}")
+            await self.logger.ainfo(f"Connected to Weaviate at {self.config['host']}:{self.config['http_port']}")
         except Exception as e:
-            await SingletonLoggerSafe.aerror(f"Failed to connect to Weaviate: {e}")
+            await self.logger.aerror(f"Failed to connect to Weaviate: {e}")
         
         await self._new_class(self.config["class_name"])
         return self
@@ -48,34 +49,34 @@ class WeaviateWriter:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         try:
             await self.client.close()
-            await SingletonLoggerSafe.ainfo(f"Disconnected from Weaviate at {self.config['host']}:{self.config['http_port']}")
+            await self.logger.ainfo(f"Disconnected from Weaviate at {self.config['host']}:{self.config['http_port']}")
         except Exception as e:
-            await SingletonLoggerSafe.aerror(f"Failed to disconnect from Weaviate: {e}")
+            await self.logger.aerror(f"Failed to disconnect from Weaviate: {e}")
     
     async def _new_class(self, class_name):
         if await self.client.collections.exists(class_name):
-            await SingletonLoggerSafe.ainfo(f"Class '{class_name}' already exists.")
+            await self.logger.ainfo(f"Class '{class_name}' already exists.")
             return
         
         try:
-            await SingletonLoggerSafe.ainfo(f"Creating class '{class_name}'")
+            await self.logger.ainfo(f"Creating class '{class_name}'")
             await self.client.collections.create(
                     name=class_name,
                     properties = self.properties,
                 description="Processed business data stored via message queue"
             )
-            await SingletonLoggerSafe.ainfo(f"Class '{class_name}' created successfully.")
+            await self.logger.ainfo(f"Class '{class_name}' created successfully.")
         except Exception as e:
-            await SingletonLoggerSafe.aerror(f"Failed to create class '{class_name}': {e}")
+            await self.logger.aerror(f"Failed to create class '{class_name}': {e}")
 
     async def store_article(self, article_text):
         try:
             article = ArticlePayload.from_json(article_text)
             collection = self.client.collections.get(self.config["class_name"])
-            await SingletonLoggerSafe.ainfo(f"Storing article: {article}")
-            await SingletonLoggerSafe.ainfo(f"Property keys: {self.property_keys}")
+            await self.logger.ainfo(f"Storing article: {article}")
+            await self.logger.ainfo(f"Property keys: {self.property_keys}")
             filtered = {k: v for k, v in asdict(article).items() if k in self.property_keys}
             await collection.data.insert(filtered)
-            await SingletonLoggerSafe.ainfo(f"Article stored successfully: {filtered}")
+            await self.logger.ainfo(f"Article stored successfully: {filtered}")
         except Exception as e:
-            await SingletonLoggerSafe.aerror(f"Failed to store article: {e}")
+            await self.logger.aerror(f"Failed to store article: {e}")
