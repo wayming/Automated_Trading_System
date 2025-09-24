@@ -2,16 +2,9 @@ import asyncpg
 from typing import TypedDict
 from news_model.message import ArticlePayload
 from common.logger import SingletonLoggerSafe
-from dataclasses import asdict, fields
+from common.pg_common import PostgresConfig
+from dataclasses import asdict
 from datetime import datetime
-
-class PostgresConfig(TypedDict):
-    host: str
-    port: int
-    user: str
-    password: str
-    database: str
-    table_name: str
     
 class PostgresWriter:
     def __init__(self, config: PostgresConfig):
