@@ -2,7 +2,7 @@ import pytest
 from unittest import mock
 from dataclasses import asdict
 from news_model.message import ArticlePayload
-from news_store.pg_writer import PostgresWriter, PostgresConfig
+from news_ingestor.pg_writer import PostgresWriter, PostgresConfig
 from common.logger import SingletonLoggerSafe
 from datetime import datetime
 # -------------------------

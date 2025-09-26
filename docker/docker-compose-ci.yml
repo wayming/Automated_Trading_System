@@ -158,13 +158,13 @@ services:
     networks:
       - scraper-network
 
-  news_store:
+  news_ingestor:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.news.store
       args:
         - IMAGE_TAG=${IMAGE_TAG}
-    image: ${REGISTRY}/${IMAGE_NAME}/news_store:${IMAGE_TAG}
+    image: ${REGISTRY}/${IMAGE_NAME}/news_ingestor:${IMAGE_TAG}
     volumes:
       - ../output:/app/output  # Mount volume
     environment:

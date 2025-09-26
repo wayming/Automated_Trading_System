@@ -20,7 +20,8 @@ RUN pip install --no-cache-dir \
     pytest-cov \
     pytest-xdist \
     psycopg2-binary \
-    asyncpg
+    asyncpg \
+    sentence-transformers
 
 RUN apt-get update && apt-get install -y iputils-ping && rm -rf /var/lib/apt/lists/*
 
@@ -35,7 +36,7 @@ WORKDIR /app
 
 # Set environment variable to prevent Python from writing pyc files
 ENV PYTHONUNBUFFERED 1
-# ENV PYTHONPATH=/app/proto:/app/news_scraper:/app/news_model:/app/common:/app/news_store:/app/news_store:/app/news_model:/app/common:/app/news_store
+# ENV PYTHONPATH=/app/proto:/app/news_scraper:/app/news_model:/app/common:/app/news_ingestor:/app/news_ingestor:/app/news_model:/app/common:/app/news_ingestor
 
 # Set default command
 CMD ["tail", "-f", "/dev/null"]

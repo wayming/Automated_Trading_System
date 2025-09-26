@@ -733,7 +733,7 @@ spec:
           echo "Weaviate is ready!"
       containers:
       - name: news-store
-        image: "ghcr.io/wayming/trade/news_store:f3d8d9705531b2b6a49782cd7093fce683de0b6c"
+        image: "ghcr.io/wayming/trade/news_ingestor:f3d8d9705531b2b6a49782cd7093fce683de0b6c"
         imagePullPolicy: Always
         env:
         - name: RABBITMQ_URL

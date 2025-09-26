@@ -138,7 +138,7 @@ services:
     networks:
       - scraper-network
 
-  news_store:
+  news_ingestor:
     build:
       context: ../  # Set build context to project root
       dockerfile: docker/Dockerfile.news.store

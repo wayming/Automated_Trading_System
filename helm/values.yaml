@@ -191,7 +191,7 @@ coreServices:
   newsStore:
     enabled: true
     image:
-      repository: "news_store"
+      repository: "news_ingestor"
       tag: 71667653921b390640258754400dcdda1d5c14ad
       pullPolicy: Always
     resources:

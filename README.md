@@ -13,7 +13,7 @@ A comprehensive trading system that integrates news analysis, stock data managem
     - Trade policy implementation
 
 - **News Store**: Processes and stores news data
-  - Location: `news_store/`
+  - Location: `news_ingestor/`
   - Features:
     - Message queue consumer
     - News classification

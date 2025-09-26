@@ -26,3 +26,4 @@ news_analyser/__pycache__/
 weaviate/
 pgadmin/
 news_analyser/mcp.py
+.cache/
