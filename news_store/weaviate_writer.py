@@ -5,6 +5,7 @@ from typing import TypedDict
 from news_model.message import ArticlePayload
 from common.logger import SingletonLoggerSafe
 from dataclasses import asdict
+from sentence_transformers import SentenceTransformer
 
 class WeaviateConfig(TypedDict):
     host: str
@@ -18,13 +19,11 @@ class WeaviateWriter:
         self.config = config
         self.properties = [
             {"name": "article_id", "data_type": DataType.TEXT},
-            {"name": "time", "data_type": DataType.DATE},
-            {"name": "title", "data_type": DataType.TEXT},
             {"name": "content", "data_type": DataType.TEXT},
-            {"name": "error", "data_type": DataType.TEXT}
         ]
         self.property_keys = {p["name"] for p in self.properties}
         self.logger = SingletonLoggerSafe.component("WeaviateWriter")
+        self.model = SentenceTransformer("BAAI/bge-base-zh-v1.5")
     
     async def __aenter__(self):
         try:
@@ -73,10 +72,12 @@ class WeaviateWriter:
         try:
             article = ArticlePayload.from_json(article_text)
             collection = self.client.collections.get(self.config["class_name"])
-            await self.logger.ainfo(f"Storing article: {article}")
-            await self.logger.ainfo(f"Property keys: {self.property_keys}")
-            filtered = {k: v for k, v in asdict(article).items() if k in self.property_keys}
-            await collection.data.insert(filtered)
-            await self.logger.ainfo(f"Article stored successfully: {filtered}")
+            if article.article_id is not None and article.content is not None:
+                embedding = self.model.encode(article.content)
+                await collection.data.insert(
+                    properties={"article_id": article.article_id, "content": article.content},
+                    vector=embedding
+                )
+                await self.logger.ainfo(f"Article stored successfully: {article}")
         except Exception as e:
             await self.logger.aerror(f"Failed to store article: {e}")
