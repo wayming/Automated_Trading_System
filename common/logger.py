@@ -70,6 +70,7 @@ class SingletonLoggerSafe:
             logger.addHandler(fh)
             
             cls._instance = logger
+        logger.info(cls.__dict__)
         return cls
 
     @classmethod

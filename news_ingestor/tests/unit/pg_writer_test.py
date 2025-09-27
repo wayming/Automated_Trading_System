@@ -46,8 +46,6 @@ def writer(mock_config):
     w.conn = mock.AsyncMock()
     return w
 
-SingletonLoggerSafe("output/tests/pg_writer_test.log")
-
 # -------------------------
 # Tests
 # -------------------------

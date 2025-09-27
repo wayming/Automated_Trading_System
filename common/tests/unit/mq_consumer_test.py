@@ -6,7 +6,6 @@ import asyncio
 from contextlib import asynccontextmanager
 from common.logger import SingletonLoggerSafe
 
-SingletonLoggerSafe("output/tests/mq_consumer_test.log")
 @pytest.fixture
 def consumer():
     consumer = RabbitMQConsumer(

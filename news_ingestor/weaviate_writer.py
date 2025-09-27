@@ -71,7 +71,7 @@ class WeaviateWriter:
     async def store_article(self, article_text):
         try:
             article = ArticlePayload.from_json(article_text)
-            collection = self.client.collections.get(self.config["class_name"])
+            collection = await self.client.collections.get(self.config["class_name"])
             await self.logger.ainfo(f"Storing article: {article}")
             if article.article_id is not None and article.content is not None:
                 embedding = self.model.encode(article.content)
