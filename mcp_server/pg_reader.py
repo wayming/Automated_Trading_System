@@ -1,6 +1,6 @@
 import json
 from typing import Dict, Any
-from mcp.types import Tool, ToolResult
+from mcp.types import Tool, CallToolResult
 from common.pg_common import PostgresConfig
 from common.logger import SingletonLoggerSafe
 from common.pg_common import asyncpg
@@ -8,9 +8,8 @@ from common.pg_common import asyncpg
 class PGReader:
     def __init__(self, config: PostgresConfig):
         self.config = config
-        self.conn = None
         self.logger = SingletonLoggerSafe.component("PGReader")
-        self.pg_pool = None
+        self.pool = None
     async def connect(self):
         self.pool = await asyncpg.create_pool(
             host=self.config["host"],
@@ -59,6 +58,6 @@ class PGReader:
             else:
                 result = rows[0]
             
-            return ToolResult(content=[{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}])
+            return ToolResult(content=[{"type": "json", "data": json.dumps(result, ensure_ascii=False, indent=2)}])
 
         return get_article_historical_analysis

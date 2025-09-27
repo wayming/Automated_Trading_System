@@ -22,8 +22,10 @@ RUN pip install --no-cache-dir \
     pytest-xdist \
     pytest-forked \
     psycopg2-binary \
-    asyncpg
+    asyncpg \
+    mcp
     
+
 RUN apt-get update && apt-get install -y iputils-ping && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -u 1000 appuser

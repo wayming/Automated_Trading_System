@@ -11,155 +11,63 @@ from dataclasses import asdict
 from mcp.server.fastmcp import FastMCP
 from mcp.server.session import ServerSession
 from mcp.types import Tool, ToolResult
-
-# LangChain 导入（用于 Agent）
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
 from common.pg_common import PostgresConfig
+from common.wv_common import WeaviateConfig
 
 # MCP 客户端（SDK）
 from mcp.client import MCPClient
 
-class PGReader:
-    def __init__(self, config: PostgresConfig):
-        self.config = config
-        self.conn = None
-        self.logger = SingletonLoggerSafe.component("PGReader")
-
-    async def connect(self):
-        self.conn = await asyncpg.connect(
-            host=self.config["host"],
-            port=self.config["port"],
-            user=self.config["user"],
-            password=self.config["password"],
-            database=self.config["database"],
-        )
-        await self.logger.ainfo(
-            f"Connected to Postgres at {self.config['host']}:{self.config['port']}/{self.config['database']}"
-        )
-    
-    async def disconnect(self):
-        if self.conn:
-            await self.conn.close()
-        await self.logger.ainfo("Disconnected from Postgres")
-
 class StockMCPServer(FastMCP):
     """基于 MCP SDK 的股票 MCP 服务器"""
     
-    def __init__(self, db_connection_string: str):
+    def __init__(self):
         super().__init__(name="stock-data-mcp-server", version="1.0.0")
-        self.db = StockDatabase(db_connection_string)
-        self.add_tool(self.get_stock_data_tool())
-        self.add_tool(self.analyze_stock_tool())
+        self.pg_reader = PGReader(PostgresConfig(
+            host=os.getenv("POSTGRES_HOST", "localhost"),
+            port=os.getenv("POSTGRES_PORT", 5432),
+            user=os.getenv("POSTGRES_USER", "postgres"),
+            password=os.getenv("POSTGRES_PASSWORD", "password"),
+            database=os.getenv("POSTGRES_DB", "postgres")
+        ))
+        self.wv_reader = WVReader(WeaviateConfig(
+            host=os.getenv("WEAVIATE_HOST", "localhost"),
+            http_port=os.getenv("WEAVIATE_HTTP_PORT", "8080"),
+            grpc_port=os.getenv("WEAVIATE_GRPC_PORT", "8081"),
+            class_name=os.getenv("WEAVIATE_CLASS_NAME", "Article")
+        ))
+        self.add_tool(Tool(
+            name="list_tools",
+            description="List all registered tools",
+            func=self._list_tools
+        ))
+        self.add_tool(Tool(
+            name="get_similar_articles",
+            description="Get similar articles",
+            func=self.wv_reader.get_similar_articles_tool()
+        ))
+        self.add_tool(Tool(
+            name="get_article_historical_analysis",
+            description="Get article historical analysis",
+            func=self.pg_reader.get_article_historical_analysis_tool()
+        ))
 
+
+    def _list_tools(self) -> ToolResult:
+        return ToolResult(content=[{"type": "text", "text": json.dumps([asdict(tool) for tool in self.tools], ensure_ascii=False, indent=2)}])
+    
     async def lifespan(self, session: ServerSession) -> AsyncIterator[None]:
-        """生命周期：启动时连接数据库"""
-        await self.db.connect()
+        await self.pg_reader.connect()
+        await self.wv_reader.connect()
         try:
             yield
         finally:
-            await self.db.disconnect()
+            await self.pg_reader.disconnect()
+            await self.wv_reader.disconnect()
 
-    def get_stock_data_tool(self) -> Tool:
-        """定义 get_stock_data 工具"""
-        @self.tool(
-            name="get_stock_data",
-            description="获取股票历史数据",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "symbol": {"type": "string", "description": "股票代码"},
-                    "days": {"type": "integer", "description": "获取天数", "default": 30}
-                },
-                "required": ["symbol"]
-            }
-        )
-        def get_stock_data(params: Dict[str, Any]) -> ToolResult:
-            symbol = params["symbol"].upper()
-            days = params.get("days", 30)
-            
-            cursor = self.db.connection.cursor()
-            cursor.execute("""
-                SELECT date, close_price, volume
-                FROM stock_prices
-                WHERE symbol = %s
-                AND date >= CURRENT_DATE - INTERVAL '%s days'
-                ORDER BY date DESC
-                LIMIT %s
-            """, [symbol, days, days])
-            
-            rows = cursor.fetchall()
-            cursor.close()
-            
-            if not rows:
-                result = {"error": f"No data found for {symbol}"}
-            else:
-                data = [dict(row) for row in rows]
-                for row in data:
-                    row["date"] = str(row["date"])
-                result = {
-                    "symbol": symbol,
-                    "period_days": days,
-                    "data_points": len(data),
-                    "data": data
-                }
-            
-            return ToolResult(content=[{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}])
+async def main():
+    server = StockMCPServer()
+    async with serve_websocket(server, host="0.0.0.0", port=8000):
+        await server.wait_closed()
 
-        return get_stock_data
-
-    def analyze_stock_tool(self) -> Tool:
-        """定义 analyze_stock 工具"""
-        @self.tool(
-            name="analyze_stock",
-            description="分析股票表现",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "symbol": {"type": "string", "description": "股票代码"},
-                    "period": {"type": "integer", "description": "分析周期", "default": 30}
-                },
-                "required": ["symbol"]
-            }
-        )
-        def analyze_stock(params: Dict[str, Any]) -> ToolResult:
-            symbol = params["symbol"].upper()
-            period = params.get("period", 30)
-            
-            cursor = self.db.connection.cursor()
-            cursor.execute("""
-                SELECT 
-                    AVG(close_price) as avg_price,
-                    MIN(close_price) as min_price,
-                    MAX(close_price) as max_price,
-                    COUNT(*) as trading_days
-                FROM stock_prices
-                WHERE symbol = %s
-                AND date >= CURRENT_DATE - INTERVAL '%s days'
-            """, [symbol, period])
-            
-            result = cursor.fetchone()
-            cursor.close()
-            
-            if not result or not result["trading_days"]:
-                res = {"error": f"No data for analysis: {symbol}"}
-            else:
-                res = {
-                    "symbol": symbol,
-                    "analysis_period": period,
-                    "statistics": {
-                        "avg_price": round(float(result["avg_price"]), 2),
-                        "min_price": float(result["min_price"]),
-                        "max_price": float(result["max_price"]),
-                        "trading_days": result["trading_days"],
-                        "price_range_pct": round(
-                            (float(result["max_price"]) - float(result["min_price"])) 
-                            / float(result["min_price"]) * 100, 2
-                        )
-                    }
-                }
-            
-            return ToolResult(content=[{"type": "text", "text": json.dumps(res, ensure_ascii=False, indent=2)}])
-
-        return analyze_stock
+if __name__ == "__main__":
+    asyncio.run(main())

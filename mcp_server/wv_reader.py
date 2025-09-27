@@ -16,6 +16,7 @@ class WVReader:
         self.config = config
         self.logger = SingletonLoggerSafe.component("WVReader")
         self.client = None
+        self.model = SentenceTransformer("BAAI/bge-base-zh-v1.5")
 
     async def connect(self):
         try:
@@ -59,23 +60,31 @@ class WVReader:
         )
 
         async def get_similar_articles(params: Dict[str, Any]) -> ToolResult:
-            article_title = params["article_title"]
-            article_content = params["article_content"]
-            
-            with self.client.acquire() as conn:
-                rows = await conn.fetch("""
-                SELECT article_id, time, title, content, analysis, error
-                FROM articles
-                WHERE article_id = %s
-            """, [article_id])
-            
-            if not rows:
-                result = {"error": f"No data found for {article_id}"}
-            elif len(rows) > 1:
-                result = {"error": f"Multiple data found for {article_id}"}
-            else:
-                result = rows[0]
-            
-            return ToolResult(content=[{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}])
+            try:
+                article_title = params["article_title"]
+                article_content = params["article_content"]
+                
+                if article_content is None or article_content == "":
+                    results = {"error": "Article content is empty"}
+                    return ToolResult(content=[{"type": "text", "text": json.dumps(results, ensure_ascii=False, indent=2)}])
+                
+                embedding = self.model.encode(article_content)
+                collection = await self.client.collections.get(self.config["class_name"])
+                
+                query_result = await collection.query.near_vector(
+                    vector=embedding,
+                    limit=5
+                )
 
+                if not query_result:
+                    results = {"error": f"No data found for {article_id}"}
+                    return ToolResult(content=[{"type": "text", "text": json.dumps(results, ensure_ascii=False, indent=2)}])
+            
+                results = [obj.properties for obj in query_result.objects]
+                return ToolResult(content=[{"type": "text", "text": json.dumps(results, ensure_ascii=False, indent=2)}])
+            except Exception as e:
+                await self.logger.aerror(f"Failed to get similar articles: {e}")
+                results = {"error": str(e)}
+                return ToolResult(content=[{"type": "text", "text": json.dumps(results, ensure_ascii=False, indent=2)}])
+    
         return get_similar_articles
