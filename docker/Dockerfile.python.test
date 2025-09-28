@@ -23,7 +23,8 @@ RUN pip install --no-cache-dir \
     pytest-forked \
     psycopg2-binary \
     asyncpg \
-    mcp
+    mcp \
+    fastmcp
     
 
 RUN apt-get update && apt-get install -y iputils-ping && rm -rf /var/lib/apt/lists/*
