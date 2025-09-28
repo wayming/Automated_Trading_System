@@ -11,5 +11,5 @@ services:
       - PYTHONUNBUFFERED=1
       - PIP_NO_CACHE_DIR=1
     # avoid test files to share the global singleton instance
-    command: pytest -v mcp_server/tests
+    command: pytest -v
 
