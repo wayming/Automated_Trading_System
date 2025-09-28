@@ -1,12 +1,9 @@
-import json
 from typing import Dict, Any, TypedDict
-from mcp.server.fastmcp import tool
-from mcp.types import CallToolResult
 from common.logger import SingletonLoggerSafe
 import weaviate
-from weaviate.classes.init import ConnectionParams
+from weaviate.connect import ConnectionParams
 from sentence_transformers import SentenceTransformer
-
+from typing import List
 
 class WeaviateConfig(TypedDict):
     host: str
@@ -56,11 +53,10 @@ class WVReader:
     async def get_similar_articles(self, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Search similar articles in Weaviate based on embedding"""
         try:
-            article_title = params["article_title"]
             article_content = params["article_content"]
 
             if not article_content.strip():
-                self.logger.ainfo("Article content is empty")
+                await self.logger.ainfo("Article content is empty")
                 return []
 
             embedding = self.model.encode(article_content)
@@ -72,7 +68,7 @@ class WVReader:
             )
 
             if not query_result or not query_result.objects:
-                self.logger.ainfo("No similar articles found for {article_title}")
+                await self.logger.ainfo("No similar articles found for {article_title}")
                 return []
 
             return [obj.properties for obj in query_result.objects]
