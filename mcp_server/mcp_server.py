@@ -14,12 +14,20 @@ from mcp_server.wv_reader import WVReader
 
 SingletonLoggerSafe("output/mcp_server.log")
 
-class StockMCPServer(FastMCP):
-    """Article Server"""
-    
+LIST_OF_OBJECTS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "items": {
+            "type": "array",
+            "items": {"type": "object"}
+        }
+    },
+    "required": ["items"]
+}
+
+class ProvidersContext:
     def __init__(self):
-        super().__init__(name="stock-data-mcp-server", version="1.0.0")
-        self.logger = SingletonLoggerSafe.component("StockMCPServer")
+        self.logger = SingletonLoggerSafe.component("ProvidersContext")
         self.pg_reader = PGReader(PostgresConfig(
             host=os.getenv("POSTGRES_HOST", "localhost"),
             port=os.getenv("POSTGRES_PORT", 5432),
@@ -31,62 +39,50 @@ class StockMCPServer(FastMCP):
             host=os.getenv("WEAVIATE_HOST", "localhost"),
             http_port=os.getenv("WEAVIATE_HTTP_PORT", "8080"),
             grpc_port=os.getenv("WEAVIATE_GRPC_PORT", "8081"),
-            class_name=os.getenv("WEAVIATE_CLASS_NAME", "Article")
+            class_name=os.getenv("WEAVIATE_CLASS_NAME", "articles")
         ))
-        self.tool_manager = ToolManager()
-        self.tool_manager.add_tool(Tool.from_function(
-            name="get_similar_articles",
-            description="Get similar articles",
-            fn=self.wv_reader.get_similar_articles,
-            output_schema={"type": "list", "items": {"type": "object"}} 
-        ))
-        self.tool_manager.add_tool(Tool.from_function(
-            name="get_article_historical_analysis",
-            description="Get article historical analysis",
-            fn=self.pg_reader.get_article_historical_analysis,
-            output_schema={"type": "list", "items": {"type": "object"}}
-        ))
-        self.tool_manager.add_tool(Tool.from_function(
-            name="list_tools",
-            description="List all registered tools",
-            fn=self._list_tools,
-            output_schema={"type": "list", "items": {"type": "object"}}
-        ))
-        self.logger.info("StockMCPServer initialized")
-    @asynccontextmanager
-    async def lifespan(self) -> AsyncIterator[None]:
+
+    async def __aenter__(self):
         await self.pg_reader.connect()
         await self.wv_reader.connect()
-        try:
-            yield
-        finally:
-            await self.pg_reader.disconnect()
-            await self.wv_reader.disconnect()
-
-    # @self.tool(name="list_tools", description="List all registered tools")
-    def _list_tools(self) -> list[Tool]:
-        return self.tool_manager.list_tools()
-
-    # @self.tool(
-    #     name="get_similar_articles",
-    #     description="Get similar articles",
-    #     output_schema=list[Dict[str, Any]]  
-    # )
-    def _get_similar_articles(self, params: Dict[str, Any]) -> list[Dict[str, Any]]:
-        return self.wv_reader.get_similar_articles(params)
+        return self
     
-    # @self.tool(
-    #     name="get_article_historical_analysis",
-    #     description="Get article historical analysis",
-    #     output_schema=list[Dict[str, Any]]
-    # )
-    def _get_article_historical_analysis(self, params: Dict[str, Any]) -> list[Dict[str, Any]]:
-        return self.pg_reader.get_article_historical_analysis(params)
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.pg_reader.disconnect()
+        await self.wv_reader.disconnect()
+
+def register_tools(mcp: FastMCP, providers: ProvidersContext):
+    @mcp.tool (
+        name="get_similar_articles",
+        description="Get similar articles",
+        output_schema=LIST_OF_OBJECTS_SCHEMA
+    )
+    async def get_similar_articles(article_content: str) -> Dict[str, Any]:
+        return {"items": await providers.wv_reader.get_similar_articles(article_content)}
+    
+    @mcp.tool (
+        name="get_article_historical_analysis",
+        description="Get article historical analysis",
+        output_schema=LIST_OF_OBJECTS_SCHEMA
+    )
+    async def get_article_historical_analysis(article_id: str) -> Dict[str, Any]:
+        return {"items": await providers.pg_reader.get_article_historical_analysis(article_id)}
+    
+    @mcp.tool (
+        name="list_tools",
+        description="List all registered tools",
+        output_schema=LIST_OF_OBJECTS_SCHEMA
+    )
+    async def list_tools() -> Dict[str, Any]:
+        return {"items": mcp.tools.list_tools()}
     
 async def main():
-    server = StockMCPServer()
-    async with server.lifespan():
-        await server.run_async(transport="http", host="0.0.0.0", port=os.getenv("MCP_SERVER_PORT", 8000))
+    mcp = FastMCP()
+    providers_context = ProvidersContext()
+    async with providers_context as providers:
+        register_tools(mcp, providers)
+        await mcp.run_async(transport="http", host="0.0.0.0", port=int(os.getenv("MCP_SERVER_PORT", 8000)))
 
 if __name__ == "__main__":
     asyncio.run(main())
+

@@ -50,20 +50,18 @@ class WVReader:
             await self.logger.aerror(f"Failed to disconnect from Weaviate: {e}")
             raise
 
-    async def get_similar_articles(self, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def get_similar_articles(self, article_content: str) -> List[Dict[str, Any]]:
         """Search similar articles in Weaviate based on embedding"""
         try:
-            article_content = params["article_content"]
-
             if not article_content.strip():
-                await self.logger.ainfo("Article content is empty")
+                await self.logger.ainfo("Article article_content is empty")
                 return []
 
             embedding = self.model.encode(article_content)
-            collection = await self.client.collections.get(self.config["class_name"])
+            collection = self.client.collections.use(self.config["class_name"])
 
             query_result = await collection.query.near_vector(
-                vector=embedding,
+                near_vector=embedding,
                 limit=5
             )
 
