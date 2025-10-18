@@ -42,10 +42,7 @@ async def test_get_similar_articles_success(config):
         mock_client.collections.get.return_value = mock_collection
         reader.client = mock_client
 
-        result = await reader.get_similar_articles({
-            "article_title": "Hello",
-            "article_content": "Some text here"
-        })
+        result = await reader.get_similar_articles("Some text here")
 
         assert result == [{"id": 1, "title": "Test"}]
         mock_collection.query.near_vector.assert_awaited_once()
@@ -55,10 +52,7 @@ async def test_get_similar_articles_success(config):
 async def test_get_similar_articles_empty_content(config):
     reader = WVReader(config)
 
-    result = await reader.get_similar_articles({
-        "article_title": "Hello",
-        "article_content": "   "
-    })
+    result = await reader.get_similar_articles("   ")
 
     assert result == []
 
@@ -75,9 +69,6 @@ async def test_get_similar_articles_no_results(config):
         mock_client.collections.get.return_value = mock_collection
         reader.client = mock_client
 
-        result = await reader.get_similar_articles({
-            "article_title": "Hello",
-            "article_content": "Some text"
-        })
+        result = await reader.get_similar_articles("Some text")
 
         assert result == []

@@ -80,7 +80,11 @@ async def main():
     async with StockMCPServer() as server:
         mcp = FastMCP()
         server.register_tools(mcp)
-        await mcp.run_async(transport="http", host="0.0.0.0", port=int(os.getenv("MCP_SERVER_PORT", 8000)))
+        await mcp.run_async(
+            transport="http",
+            host="0.0.0.0",
+            port=int(os.getenv("MCP_SERVER_PORT", 8000)),
+            require_session=False)
 
 if __name__ == "__main__":
     asyncio.run(main())

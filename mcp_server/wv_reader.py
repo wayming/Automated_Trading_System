@@ -58,9 +58,8 @@ class WVReader:
                 return []
 
             embedding = self.model.encode(article_content)
-            collection = self.client.collections.use(self.config["class_name"])
-
-            query_result = await collection.query.near_vector(
+            article_class = await self.client.collections.get(self.config["class_name"])
+            query_result = await article_class.query.near_vector(
                 near_vector=embedding,
                 limit=5
             )
